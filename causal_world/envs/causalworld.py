@@ -32,6 +32,9 @@ class CausalWorld(gym.Env):
                  normalize_observations=True,
                  max_episode_length=None,
                  data_recorder=None,
+                 camera_positions=None,
+                 camera_orientations=None,
+                 initialize_all_clients=False,
                  camera_indicies=np.array([0, 1, 2]),
                  wrappers=None):
         """
@@ -86,6 +89,7 @@ class CausalWorld(gym.Env):
                                        order as well.
         :param wrappers: (causal_world.wrappers) should not be used for now.
         """
+        assert not (enable_visualization and initialize_all_clients)
         self._observation_mode = observation_mode
         self._action_mode = action_mode
         self._enable_visualization = enable_visualization
@@ -98,6 +102,7 @@ class CausalWorld(gym.Env):
         self._pybullet_client_w_goal_id = None
         self._pybullet_client_full_id = None
         self._revolute_joint_ids = None
+        self._initialize_all_clients = initialize_all_clients
         self._instantiate_pybullet()
         self.link_name_to_index = None
         self._robot_properties_path = os.path.join(
@@ -109,32 +114,31 @@ class CausalWorld(gym.Env):
         self._tool_cameras = None
         self._goal_cameras = None
         if observation_mode == 'pixel':
+            if camera_positions is not None and camera_orientations is not None:
+                self._camera_positions = camera_positions
+                self._camera_orientations = camera_orientations
+            else:
+                self._camera_positions = [
+                    [0.2496, 0.2458, 0.58],
+                    [0.0047, -0.2834, 0.58],
+                    [-0.2470, 0.2513, 0.50]
+                ]
+                self._camera_orientations = [
+                    [0.3760, 0.8690, -0.2918, -0.1354],
+                    [0.9655, -0.0098, -0.0065, -0.2603],
+                    [-0.3633, 0.8686, -0.3141, 0.1220]
+                ]
             self._tool_cameras = []
-            self._tool_cameras.append(
-                Camera(camera_position=[0.2496, 0.2458, 0.58],
-                       camera_orientation=[0.3760, 0.8690, -0.2918, -0.1354],
-                       pybullet_client_id=self._pybullet_client_w_o_goal_id))
-            self._tool_cameras.append(
-                Camera(camera_position=[0.0047, -0.2834, 0.58],
-                       camera_orientation=[0.9655, -0.0098, -0.0065, -0.2603],
-                       pybullet_client_id=self._pybullet_client_w_o_goal_id))
-            self._tool_cameras.append(
-                Camera(camera_position=[-0.2470, 0.2513, 0.50],
-                       camera_orientation=[-0.3633, 0.8686, -0.3141, 0.1220],
-                       pybullet_client_id=self._pybullet_client_w_o_goal_id))
             self._goal_cameras = []
-            self._goal_cameras.append(
-                Camera(camera_position=[0.2496, 0.2458, 0.58],
-                       camera_orientation=[0.3760, 0.8690, -0.2918, -0.1354],
-                       pybullet_client_id=self._pybullet_client_w_goal_id))
-            self._goal_cameras.append(
-                Camera(camera_position=[0.0047, -0.2834, 0.58],
-                       camera_orientation=[0.9655, -0.0098, -0.0065, -0.2603],
-                       pybullet_client_id=self._pybullet_client_w_goal_id))
-            self._goal_cameras.append(
-                Camera(camera_position=[-0.2470, 0.2513, 0.50],
-                       camera_orientation=[-0.3633, 0.8686, -0.3141, 0.1220],
-                       pybullet_client_id=self._pybullet_client_w_goal_id))
+            for cam_position, cam_orientation in zip(self._camera_positions, self._camera_orientations):
+                self._tool_cameras.append(
+                    Camera(camera_position=cam_position,
+                        camera_orientation=cam_orientation,
+                        pybullet_client_id=self._pybullet_client_w_o_goal_id))
+                self._goal_cameras.append(
+                    Camera(camera_position=cam_position,
+                        camera_orientation=cam_orientation,
+                        pybullet_client_id=self._pybullet_client_w_goal_id))
         self._robot = TriFingerRobot(
             action_mode=action_mode,
             observation_mode=observation_mode,
@@ -173,7 +177,12 @@ class CausalWorld(gym.Env):
 
         self.metadata['video.frames_per_second'] = \
             (1 / self._simulation_time) / self._skip_frame
-        self._setup_viewing_camera()
+        self._render_width, self._render_height = (320, 240)
+        self._render_yaws = [0]
+        self._render_pitches = [-60]
+        self._render_distances = [0.6]
+        self._render_base_positions = [[0, 0, 0]]
+        self._setup_viewing_cameras()
         self._normalize_actions = normalize_actions
         self._normalize_observations = normalize_observations
         self._episode_length = 0
@@ -521,7 +530,7 @@ class CausalWorld(gym.Env):
         self._robot.update_latest_full_state()
         return
 
-    def render(self, mode="human"):
+    def render(self, mode="human", image_content='full'):
         """
         Returns an RGB image taken from above the platform.
 
@@ -529,55 +538,73 @@ class CausalWorld(gym.Env):
 
         :return: (nd.array) an RGB image taken from above the platform.
         """
-        if self._pybullet_client_w_o_goal_id is not None:
-            client = self._pybullet_client_w_o_goal_id
-        else:
+        if image_content == 'full':
+            if self._pybullet_client_full_id is None:
+                raise ValueError("Corresponding PyBullet client has not been initialized")
             client = self._pybullet_client_full_id
-        (_, _, px, _, _) = pybullet.getCameraImage(
-            width=self._render_width,
-            height=self._render_height,
-            viewMatrix=self.view_matrix,
-            projectionMatrix=self.proj_matrix,
-            renderer=pybullet.ER_BULLET_HARDWARE_OPENGL,
-            physicsClientId=client)
-        rgb_array = np.array(px)
-        if rgb_array.ndim == 1:
-            rgb_array = rgb_array.reshape((self._render_height, self._render_width, 4))
-        rgb_array = np.asarray(rgb_array, dtype='uint8')
-        rgb_array = rgb_array[:, :, :3]
-        return rgb_array
+        elif image_content == 'robot':
+            if self._pybullet_client_w_o_goal_id is None:
+                raise ValueError("Corresponding PyBullet client has not been initialized")
+            client = self._pybullet_client_w_o_goal_id
+        elif image_content == 'goal':
+            if self._pybullet_client_w_goal_id is None:
+                raise ValueError("Corresponding PyBullet client has not been initialized")
+            client = self._pybullet_client_w_goal_id
+        images = []
+        for view_matrix, proj_matrix in zip(self.view_matrices, self.proj_matrices):
+            (_, _, px, _, _) = pybullet.getCameraImage(
+                width=self._render_width,
+                height=self._render_height,
+                viewMatrix=view_matrix,
+                projectionMatrix=proj_matrix,
+                renderer=pybullet.ER_BULLET_HARDWARE_OPENGL,
+                physicsClientId=client)
+            rgb_array = np.array(px)
+            if rgb_array.ndim == 1:
+                rgb_array = rgb_array.reshape((self._render_height, self._render_width, 4))
+            rgb_array = np.asarray(rgb_array, dtype='uint8')
+            images.append(rgb_array[:, :, :3])
+        return np.concatenate(images, axis=2)
 
-    def _setup_viewing_camera(self):
+    def _setup_viewing_cameras(self, image_content='full'):
         """
         Sets up the viewing camera that is used for the render function.
 
         :return:
         """
-        if self._pybullet_client_w_o_goal_id is not None:
-            client = self._pybullet_client_w_o_goal_id
-        else:
+        if image_content == 'full':
+            if self._pybullet_client_full_id is None:
+                raise ValueError("Corresponding PyBullet client has not been initialized")
             client = self._pybullet_client_full_id
-        self._cam_dist = 0.6
-        self._cam_yaw = 0
-        self._cam_pitch = -60
-        self._render_width = 320
-        self._render_height = 240
-        base_pos = [0, 0, 0]
+        elif image_content == 'robot':
+            if self._pybullet_client_w_o_goal_id is None:
+                raise ValueError("Corresponding PyBullet client has not been initialized")
+            client = self._pybullet_client_w_o_goal_id
+        elif image_content == 'goal':
+            if self._pybullet_client_w_goal_id is None:
+                raise ValueError("Corresponding PyBullet client has not been initialized")
+            client = self._pybullet_client_w_goal_id
 
-        self.view_matrix = pybullet.computeViewMatrixFromYawPitchRoll(
-            cameraTargetPosition=base_pos,
-            distance=self._cam_dist,
-            yaw=self._cam_yaw,
-            pitch=self._cam_pitch,
-            roll=0,
-            upAxisIndex=2,
-            physicsClientId=client)
-        self.proj_matrix = pybullet.computeProjectionMatrixFOV(
-            fov=60,
-            aspect=float(self._render_width) / self._render_height,
-            nearVal=0.1,
-            farVal=100.0,
-            physicsClientId=client)
+        self.view_matrices = []
+        self.proj_matrices = []
+        for yaw, pitch, dist, base_pos in zip(self._render_yaws, 
+                              self._render_pitches, 
+                              self._render_distances,
+                              self._render_base_positions):
+            self.view_matrices.append(pybullet.computeViewMatrixFromYawPitchRoll(
+                cameraTargetPosition=base_pos,
+                distance=dist,
+                yaw=yaw,
+                pitch=pitch,
+                roll=0,
+                upAxisIndex=2,
+                physicsClientId=client))
+            self.proj_matrices.append(pybullet.computeProjectionMatrixFOV(
+                fov=60,
+                aspect=float(self._render_width) / self._render_height,
+                nearVal=0.1,
+                farVal=100.0,
+                physicsClientId=client))
         return
 
     def get_current_state_variables(self):
@@ -702,6 +729,24 @@ class CausalWorld(gym.Env):
         self._action_mode = action_mode
         self._robot.set_action_mode(action_mode)
         return
+
+    def set_render_params(self, size=None, 
+                                yaws=None, 
+                                pitches=None, 
+                                distances=None, 
+                                base_positions=None, 
+                                image_content='full'):
+        if size is not None:
+            self._render_width, self._render_height = size
+        if yaws is not None:
+            self._render_yaws = yaws
+        if pitches is not None:
+            self._render_pitches = pitches
+        if distances is not None:
+            self._render_distances = distances
+        if base_positions is not None:
+            self._render_base_positions = base_positions
+        self._setup_viewing_cameras(image_content=image_content)
 
     def get_robot(self):
         """
@@ -936,6 +981,30 @@ class CausalWorld(gym.Env):
             pybullet.setPhysicsEngineParameter(
                 deterministicOverlappingPairs=1,
                 physicsClientId=self._pybullet_client_w_goal_id)
+            if self._initialize_all_clients:
+                self._pybullet_client_full_id = pybullet.connect(
+                    pybullet.DIRECT)
+                pybullet.configureDebugVisualizer(
+                    pybullet.COV_ENABLE_GUI,
+                    0,
+                    physicsClientId=self._pybullet_client_full_id)
+                pybullet.configureDebugVisualizer(
+                    pybullet.COV_ENABLE_SEGMENTATION_MARK_PREVIEW,
+                    0,
+                    physicsClientId=self._pybullet_client_full_id)
+                pybullet.configureDebugVisualizer(
+                    pybullet.COV_ENABLE_DEPTH_BUFFER_PREVIEW,
+                    0,
+                    physicsClientId=self._pybullet_client_full_id)
+                pybullet.configureDebugVisualizer(
+                    pybullet.COV_ENABLE_RGB_BUFFER_PREVIEW,
+                    0,
+                    physicsClientId=self._pybullet_client_full_id)
+                pybullet.resetSimulation(
+                    physicsClientId=self._pybullet_client_full_id)
+                pybullet.setPhysicsEngineParameter(
+                    deterministicOverlappingPairs=1,
+                    physicsClientId=self._pybullet_client_full_id)
             if self._enable_visualization:
                 self._pybullet_client_full_id = pybullet.connect(pybullet.GUI)
                 pybullet.configureDebugVisualizer(
@@ -986,4 +1055,50 @@ class CausalWorld(gym.Env):
             pybullet.setPhysicsEngineParameter(
                 deterministicOverlappingPairs=1,
                 physicsClientId=self._pybullet_client_full_id)
+            if self._initialize_all_clients:
+                self._pybullet_client_w_o_goal_id = pybullet.connect(
+                pybullet.DIRECT)
+                pybullet.configureDebugVisualizer(
+                    pybullet.COV_ENABLE_GUI,
+                    0,
+                    physicsClientId=self._pybullet_client_w_o_goal_id)
+                pybullet.configureDebugVisualizer(
+                    pybullet.COV_ENABLE_SEGMENTATION_MARK_PREVIEW,
+                    0,
+                    physicsClientId=self._pybullet_client_w_o_goal_id)
+                pybullet.configureDebugVisualizer(
+                    pybullet.COV_ENABLE_DEPTH_BUFFER_PREVIEW,
+                    0,
+                    physicsClientId=self._pybullet_client_w_o_goal_id)
+                pybullet.configureDebugVisualizer(
+                    pybullet.COV_ENABLE_RGB_BUFFER_PREVIEW,
+                    0,
+                    physicsClientId=self._pybullet_client_w_o_goal_id)
+                pybullet.resetSimulation(
+                    physicsClientId=self._pybullet_client_w_o_goal_id)
+                pybullet.setPhysicsEngineParameter(
+                    deterministicOverlappingPairs=1,
+                    physicsClientId=self._pybullet_client_w_o_goal_id)
+                self._pybullet_client_w_goal_id = pybullet.connect(pybullet.DIRECT)
+                pybullet.configureDebugVisualizer(
+                    pybullet.COV_ENABLE_GUI,
+                    0,
+                    physicsClientId=self._pybullet_client_w_goal_id)
+                pybullet.configureDebugVisualizer(
+                    pybullet.COV_ENABLE_SEGMENTATION_MARK_PREVIEW,
+                    0,
+                    physicsClientId=self._pybullet_client_w_goal_id)
+                pybullet.configureDebugVisualizer(
+                    pybullet.COV_ENABLE_DEPTH_BUFFER_PREVIEW,
+                    0,
+                    physicsClientId=self._pybullet_client_w_goal_id)
+                pybullet.configureDebugVisualizer(
+                    pybullet.COV_ENABLE_RGB_BUFFER_PREVIEW,
+                    0,
+                    physicsClientId=self._pybullet_client_w_goal_id)
+                pybullet.resetSimulation(
+                    physicsClientId=self._pybullet_client_w_goal_id)
+                pybullet.setPhysicsEngineParameter(
+                    deterministicOverlappingPairs=1,
+                    physicsClientId=self._pybullet_client_w_goal_id)
         return
