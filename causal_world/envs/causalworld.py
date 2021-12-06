@@ -551,20 +551,25 @@ class CausalWorld(gym.Env):
                 raise ValueError("Corresponding PyBullet client has not been initialized")
             client = self._pybullet_client_w_goal_id
         images = []
+        segm_masks = []
         for view_matrix, proj_matrix in zip(self.view_matrices, self.proj_matrices):
-            (_, _, px, _, _) = pybullet.getCameraImage(
+            (_, _, px, _, segm) = pybullet.getCameraImage(
                 width=self._render_width,
                 height=self._render_height,
                 viewMatrix=view_matrix,
                 projectionMatrix=proj_matrix,
                 renderer=pybullet.ER_BULLET_HARDWARE_OPENGL,
-                physicsClientId=client)
+                physicsClientId=client, 
+                # flags=pybullet.ER_SEGMENTATION_MASK_OBJECT_AND_LINKINDEX
+                )
             rgb_array = np.array(px)
             if rgb_array.ndim == 1:
                 rgb_array = rgb_array.reshape((self._render_height, self._render_width, 4))
             rgb_array = np.asarray(rgb_array, dtype='uint8')
+            segm_array = np.array(segm)
             images.append(rgb_array[:, :, :3])
-        return np.concatenate(images, axis=2)
+            segm_masks.append(segm_array)
+        return images, segm_masks
 
     def _setup_viewing_cameras(self, image_content='full'):
         """

@@ -18,12 +18,6 @@ setuptools.setup(
         'gym',
         'numpy',
         'catkin_pkg',
-        'sphinx',
-        'matplotlib',
-        'sphinx_rtd_theme',
-        'sphinxcontrib-bibtex',
-        'pytest',
-        'psutil'
       ],
     zip_safe=False
     )
