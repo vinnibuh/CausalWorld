@@ -63,9 +63,9 @@ class TriFingerObservations(object):
 
         num_of_cameras = self._camera_indicies.shape[0]
         self._lower_bounds["pixel"] = \
-            np.zeros(shape=(num_of_cameras, 128, 128, 3), dtype=np.float64)
+            np.zeros(shape=(num_of_cameras, 64, 64, 3), dtype=np.float64)
         self._upper_bounds["pixel"] = \
-            np.full(shape=(num_of_cameras, 128, 128, 3), fill_value=255,
+            np.full(shape=(num_of_cameras, 64, 64, 3), fill_value=255,
                     dtype=np.float64)
 
         self._observation_functions = dict()
@@ -75,9 +75,9 @@ class TriFingerObservations(object):
 
         if observation_mode == "pixel":
             self._observations_keys = ["pixel"]
-            self._low = np.zeros(shape=(num_of_cameras, 128, 128, 3),
+            self._low = np.zeros(shape=(num_of_cameras, 64, 64, 3),
                                  dtype=np.float64)
-            self._high = np.full(shape=(num_of_cameras, 128, 128, 3),
+            self._high = np.full(shape=(num_of_cameras, 64, 64, 3),
                                  fill_value=255,
                                  dtype=np.float64)
             self._low_norm = 0

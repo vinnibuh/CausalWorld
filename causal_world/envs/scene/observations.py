@@ -36,9 +36,9 @@ class StageObservations(object):
         self._upper_bounds = dict()
         num_of_cameras = self._camera_indicies.shape[0]
         self._lower_bounds["goal_image"] = \
-            np.zeros(shape=(num_of_cameras, 128, 128, 3), dtype=np.float64)
+            np.zeros(shape=(num_of_cameras, 64, 64, 3), dtype=np.float64)
         self._upper_bounds["goal_image"] = \
-            np.full(shape=(num_of_cameras, 128, 128, 3), fill_value=255,
+            np.full(shape=(num_of_cameras, 64, 64, 3), fill_value=255,
                     dtype=np.float64)
         self._goal_cameras = cameras
 
