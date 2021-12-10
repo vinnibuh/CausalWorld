@@ -54,11 +54,10 @@ class Stage(object):
                 self._pybullet_client_full_id)
             self._rigid_objects_client_instances.append(
                 self._pybullet_client_full_id)
-        if self._pybullet_client_w_o_goal_id is not None:
+        if self._pybullet_client_w_goal_id is not None:
             self._rigid_objects_client_instances.append(
                 self._pybullet_client_w_goal_id
             )
-        if self._pybullet_client_w_goal_id is not None:
             self._visual_object_client_instances.append(
                 self._pybullet_client_w_goal_id)
         self._cameras = cameras
@@ -513,10 +512,7 @@ class Stage(object):
         :return: (dict) returns all the exposed variables and their values
                         in the environment's stage except for objects.
         """
-        if self._pybullet_client_w_o_goal_id is not None:
-            client = self._pybullet_client_w_o_goal_id is not None
-        else:
-            client = self._pybullet_client_full_id
+        client = self._pybullet_client_full_id
         variable_params = dict()
         variable_params["floor_color"] = \
             pybullet.getVisualShapeData(WorldConstants.FLOOR_ID,
