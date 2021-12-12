@@ -389,17 +389,29 @@ class TriFingerObservations(object):
 
         return observations_dict
 
-    def get_current_camera_observations(self):
+    def get_current_camera_observations(self, with_masks=False):
         """
 
         :return: (nd.array) returns observations from the cameras if in "pixel"
                             mode, normalization takes place here.
         """
         images = []
-        for i in self._camera_indicies:
-            images.append(self._cameras[i].get_image())
+        masks = []
+        if with_masks:
+            for i in self._camera_indicies:
+                img, mask = self._cameras[i].get_image_with_mask()
+                images.append(img)
+                masks.append(mask)
+        else:
+            for i in self._camera_indicies:
+                images.append(self._cameras[i].get_image())
+        
         camera_obs = np.stack(images, axis=0)
         if self._normalized_observations:
             camera_obs = self.normalize_observation_for_key(
                 camera_obs, "pixel")
-        return camera_obs
+        if with_masks:
+            camera_masks = np.stack(masks, axis=0)
+            return camera_obs, camera_masks
+        else:
+            return camera_obs

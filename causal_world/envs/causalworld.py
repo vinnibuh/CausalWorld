@@ -110,7 +110,7 @@ class CausalWorld(gym.Env):
             "../assets/robot_properties_fingers")
         self._finger_urdf_path = os.path.join(self._robot_properties_path,
                                               "urdf", "trifinger_edu.urdf")
-        self._create_world(initialize_goal_image=False)
+        self._create_world(initialize_goal_image=True)
 
         if camera_positions is not None and camera_orientations is not None:
             self._camera_positions = camera_positions
@@ -126,17 +126,22 @@ class CausalWorld(gym.Env):
                 [0.9655, -0.0098, -0.0065, -0.2603],
                 [-0.3633, 0.8686, -0.3141, 0.1220]
             ]
-        self._goal_cameras = []
+        self._goal_cameras = None
         self._full_cameras = []
+        self._tool_cameras = None
         for cam_position, cam_orientation in zip(self._camera_positions, self._camera_orientations):
             self._full_cameras.append(
                 Camera(camera_position=cam_position,
                     camera_orientation=cam_orientation,
                     pybullet_client_id=self._pybullet_client_full_id))
-            self._goal_cameras.append(
-                Camera(camera_position=cam_position,
-                    camera_orientation=cam_orientation,
-                    pybullet_client_id=self._pybullet_client_w_goal_id))
+            # self._tool_cameras.append(
+            #     Camera(camera_position=cam_position,
+            #         camera_orientation=cam_orientation,
+            #         pybullet_client_id=self._pybullet_client_full_id))
+            # self._goal_cameras.append(
+            #     Camera(camera_position=cam_position,
+            #         camera_orientation=cam_orientation,
+            #         pybullet_client_id=self._pybullet_client_w_goal_id))
         
         self._robot = TriFingerRobot(
             action_mode=action_mode,
@@ -146,10 +151,11 @@ class CausalWorld(gym.Env):
             normalize_observations=normalize_observations,
             simulation_time=self._simulation_time,
             pybullet_client_full_id=self._pybullet_client_full_id,
+            pybullet_client_w_goal_id=self._pybullet_client_w_goal_id,
             pybullet_client_w_o_goal_id=self._pybullet_client_w_o_goal_id,
             revolute_joint_ids=self._revolute_joint_ids,
             finger_tip_ids=self.finger_tip_ids,
-            cameras=None,
+            cameras=self._tool_cameras,
             camera_indicies=self._camera_indicies)
         self._stage = Stage(
             observation_mode=observation_mode,
@@ -157,7 +163,7 @@ class CausalWorld(gym.Env):
             pybullet_client_full_id=self._pybullet_client_full_id,
             pybullet_client_w_goal_id=self._pybullet_client_w_goal_id,
             pybullet_client_w_o_goal_id=self._pybullet_client_w_o_goal_id,
-            cameras=None,
+            cameras=self._goal_cameras,
             camera_indicies=self._camera_indicies)
         gym.Env.__init__(self)
         if task is None:
@@ -274,9 +280,9 @@ class CausalWorld(gym.Env):
         if not self._disabled_actions:
             self._robot.apply_action(action)
         if self._observation_mode == "pixel":
-            current_images = self._robot.get_current_camera_observations()
-            goal_images = self._stage.get_current_goal_image()
-            observation = np.concatenate((current_images, goal_images), axis=0)
+            current_images, current_masks = self._robot.get_current_camera_observations(with_masks=True)
+            # goal_images = self._stage.get_current_goal_image()
+            observation = current_images, current_masks
         else:
             observation = self._task.filter_structured_observations()
         reward = self._task.get_reward()
@@ -372,9 +378,9 @@ class CausalWorld(gym.Env):
                 task_params=self._task.get_task_params(),
                 world_params=self.get_world_params())
         if self._observation_mode == "pixel":
-            current_images = self._robot.get_current_camera_observations()
-            goal_images = self._stage.get_current_goal_image()
-            return np.concatenate((current_images, goal_images), axis=0)
+            current_images, current_masks = self._robot.get_current_camera_observations(with_masks=True)
+            # goal_images = self._stage.get_current_goal_image()
+            return current_images, current_masks
         else:
             return self._task.filter_structured_observations()
 
@@ -457,9 +463,9 @@ class CausalWorld(gym.Env):
                     logging.warning("Invalid Intervention was just executed!")
                     self._tracker.add_invalid_intervention(interventions_info)
         if self._observation_mode == "pixel":
-            current_images = self._robot.get_current_camera_observations()
-            goal_images = self._stage.get_current_goal_image()
-            obs = np.concatenate((current_images, goal_images), axis=0)
+            current_images, current_masks = self._robot.get_current_camera_observations(with_masks=True)
+            # goal_images = self._stage.get_current_goal_image()
+            obs = current_images, current_masks
         else:
             obs = self._task.filter_structured_observations()
         return interventions_dict, success_signal, obs
@@ -489,9 +495,9 @@ class CausalWorld(gym.Env):
                 logging.warning("Invalid Intervention was just executed!")
                 self._tracker.add_invalid_intervention(interventions_info)
         if self._observation_mode == "pixel":
-            current_images = self._robot.get_current_camera_observations()
-            goal_images = self._stage.get_current_goal_image()
-            obs = np.concatenate((current_images, goal_images), axis=0)
+            current_images, current_masks = self._robot.get_current_camera_observations(with_masks=True)
+            # goal_images = self._stage.get_current_goal_image()
+            obs = current_images, current_masks
         else:
             obs = self._task.filter_structured_observations()
         return success_signal, obs
@@ -578,15 +584,12 @@ class CausalWorld(gym.Env):
         :return: (nd.array) an RGB image taken from above the platform.
         """
         full_images = []
-        obj_images = []
         full_masks = []
         for i in self._camera_indicies:
             full_img, full_segm = self._full_cameras[i].get_image_with_mask()
-            obj_img = self._goal_cameras[i].get_image()
             full_images.append(full_img)
-            obj_images.append(obj_img)
             full_masks.append(full_segm)
-        return full_images, obj_images, full_masks
+        return full_images, full_masks
 
     def _setup_viewing_cameras(self, image_content='full'):
         """
@@ -1077,26 +1080,4 @@ class CausalWorld(gym.Env):
             pybullet.setPhysicsEngineParameter(
                 deterministicOverlappingPairs=1,
                 physicsClientId=self._pybullet_client_full_id)
-            self._pybullet_client_w_goal_id = pybullet.connect(pybullet.DIRECT)
-            pybullet.configureDebugVisualizer(
-                pybullet.COV_ENABLE_GUI,
-                0,
-                physicsClientId=self._pybullet_client_w_goal_id)
-            pybullet.configureDebugVisualizer(
-                pybullet.COV_ENABLE_SEGMENTATION_MARK_PREVIEW,
-                0,
-                physicsClientId=self._pybullet_client_w_goal_id)
-            pybullet.configureDebugVisualizer(
-                pybullet.COV_ENABLE_DEPTH_BUFFER_PREVIEW,
-                0,
-                physicsClientId=self._pybullet_client_w_goal_id)
-            pybullet.configureDebugVisualizer(
-                pybullet.COV_ENABLE_RGB_BUFFER_PREVIEW,
-                0,
-                physicsClientId=self._pybullet_client_w_goal_id)
-            pybullet.resetSimulation(
-                physicsClientId=self._pybullet_client_w_goal_id)
-            pybullet.setPhysicsEngineParameter(
-                deterministicOverlappingPairs=1,
-                physicsClientId=self._pybullet_client_w_goal_id)
         return
