@@ -302,9 +302,9 @@ class PushingTaskGenerator(BaseTask):
                     cyl_pos_goal[-1] = interventions_dict['tool_block']['size'][-1] / 2.0
                     interventions_dict['goal_block']['cylindrical_position'] = cyl_pos_goal
                 if 'cylindrical_position' in interventions_dict['tool_block']:
-                    interventions_dict['tool_block']['cylindrical_position'] = interventions_dict['tool_block']['size'][-1] / 2.0
+                    interventions_dict['tool_block']['cylindrical_position'][-1] = interventions_dict['tool_block']['size'][-1] / 2.0
                 if 'cylindrical_position' in interventions_dict['goal_block']:
-                    interventions_dict['goal_block']['cylindrical_position'] = interventions_dict['tool_block']['size'][-1] / 2.0
+                    interventions_dict['goal_block']['cylindrical_position'][-1] = interventions_dict['tool_block']['size'][-1] / 2.0
         return interventions_dict
 
     def _adjust_variable_spaces_after_intervention(self, interventions_dict):
