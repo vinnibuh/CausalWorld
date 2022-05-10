@@ -1,5 +1,6 @@
 import numpy as np
 import gym
+import pkgutil
 import pybullet
 import pybullet_data
 import os
@@ -1057,8 +1058,11 @@ class CausalWorld(gym.Env):
             if self._enable_visualization:
                 self._pybullet_client_full_id = pybullet.connect(pybullet.GUI)
             else:
+                egl = pkgutil.get_loader('eglRenderer')
                 self._pybullet_client_full_id = pybullet.connect(
                     pybullet.DIRECT)
+                plugin = pybullet.loadPlugin(egl.get_filename(), "_eglRendererPlugin")
+                print("plugin=", plugin)
             pybullet.configureDebugVisualizer(
                 pybullet.COV_ENABLE_GUI,
                 0,
