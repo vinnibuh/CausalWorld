@@ -5,7 +5,7 @@ from causal_world.intervention_actors.base_actor import \
 
 class PushingBlockInterventionActorPolicy(BaseInterventionActorPolicy):
 
-    def __init__(self, positions=True, orientations=True, masses=True, sizes=True, **kwargs):
+    def __init__(self, positions=True, orientations=True, masses=True, sizes=True, goals=False, **kwargs):
         """
         This intervention actor intervenes on the pose of the blocks
         available in the arena.
@@ -22,6 +22,8 @@ class PushingBlockInterventionActorPolicy(BaseInterventionActorPolicy):
         self.orientations = orientations
         self.masses = masses
         self.sizes = sizes
+        self.goals = goals
+        self.goal_sampler_function = None
 
     def initialize(self, env):
         """
@@ -35,6 +37,8 @@ class PushingBlockInterventionActorPolicy(BaseInterventionActorPolicy):
         :return:
         """
         self.task_intervention_space = env.get_variable_space_used()
+        if self.goals:
+            self.goal_sampler_function = env.sample_new_goal
         return
 
     def _act(self, variables_dict):
@@ -78,6 +82,10 @@ class PushingBlockInterventionActorPolicy(BaseInterventionActorPolicy):
                             [variable]['mass'][0],
                             self.task_intervention_space
                             [variable]['mass'][1])
+
+        # if goals flag appear, we change only them
+        if self.goals:
+            interventions_dict = self.goal_sampler_function()
         return interventions_dict
 
     def get_params(self):
