@@ -12,8 +12,7 @@ from collections import OrderedDict
 class Stage(object):
 
     def __init__(self, observation_mode, normalize_observations,
-                 pybullet_client_full_id, pybullet_client_w_goal_id,
-                 pybullet_client_w_o_goal_id, cameras, camera_indicies):
+                 pb_client_full, cameras, camera_indicies):
         """
         This class represents the stage object, where it handles all the arena
         functionalities including the objects and silhouettes existing in
@@ -22,12 +21,12 @@ class Stage(object):
         :param observation_mode: (str) should be "structured" or "pixel"
         :param normalize_observations: (bool) to normalize the observations or
                                               not.
-        :param pybullet_client_full_id: (int) pybullet client if visualization
+        :param pb_client_full: (int) pybullet client if visualization
                                               is enabled.
-        :param pybullet_client_w_goal_id: (int) pybullet client with the goal
+        :param pb_client_w_goal: (int) pybullet client with the goal
                                                 in the image without tool
                                                 objects.
-        :param pybullet_client_w_o_goal_id: (int) pybullet client without the
+        :param pb_client_w_o_goal: (int) pybullet client without the
                                                   goal, only tool blocks.
         :param cameras: (list) list of causal_world.robot.Camera object
                                specifying the cameras mounted on top of the
@@ -38,9 +37,9 @@ class Stage(object):
         self._rigid_objects = OrderedDict()
         self._visual_objects = OrderedDict()
         self._observation_mode = observation_mode
-        self._pybullet_client_full_id = pybullet_client_full_id
-        self._pybullet_client_w_goal_id = pybullet_client_w_goal_id
-        self._pybullet_client_w_o_goal_id = pybullet_client_w_o_goal_id
+        self._pb_client_full = pb_client_full
+        self._pb_client_w_goal = None
+        self._pb_client_w_o_goal = None
         self._camera_indicies = camera_indicies
         self._normalize_observations = normalize_observations
         self._stage_observations = None
@@ -49,18 +48,18 @@ class Stage(object):
         self._current_gravity = np.array(self._default_gravity)
         self._visual_object_client_instances = []
         self._rigid_objects_client_instances = []
-        if self._pybullet_client_full_id is not None:
+        if self._pb_client_full is not None:
             self._visual_object_client_instances.append(
-                self._pybullet_client_full_id)
+                self._pb_client_full)
             self._rigid_objects_client_instances.append(
-                self._pybullet_client_full_id)
-        if self._pybullet_client_w_o_goal_id is not None:
+                self._pb_client_full)
+        if self._pb_client_w_o_goal is not None:
             self._rigid_objects_client_instances.append(
-                self._pybullet_client_w_o_goal_id
+                self._pb_client_w_o_goal
             )
-        if self._pybullet_client_w_goal_id is not None:
+        if self._pb_client_w_goal is not None:
             self._visual_object_client_instances.append(
-                self._pybullet_client_w_goal_id)
+                self._pb_client_w_goal)
         self._cameras = cameras
         self._goal_image = None
         return
@@ -513,21 +512,17 @@ class Stage(object):
         :return: (dict) returns all the exposed variables and their values
                         in the environment's stage except for objects.
         """
-        client = self._pybullet_client_full_id
+        client = self._pb_client_full
         variable_params = dict()
         variable_params["floor_color"] = \
-            pybullet.getVisualShapeData(WorldConstants.FLOOR_ID,
-                                        physicsClientId=client)[0][7][:3]
+            client.getVisualShapeData(WorldConstants.FLOOR_ID)[0][7][:3]
         variable_params["floor_friction"] = \
-            pybullet.getDynamicsInfo(WorldConstants.FLOOR_ID, -1,
-                                     physicsClientId=client)[1]
+            client.getDynamicsInfo(WorldConstants.FLOOR_ID, -1)[1]
 
         variable_params["stage_color"] = \
-            pybullet.getVisualShapeData(WorldConstants.STAGE_ID,
-                                        physicsClientId=client)[0][7][:3]
+            client.getVisualShapeData(WorldConstants.STAGE_ID)[0][7][:3]
         variable_params["stage_friction"] = \
-            pybullet.getDynamicsInfo(WorldConstants.STAGE_ID, -1,
-                                     physicsClientId=client)[1]
+            client.getDynamicsInfo(WorldConstants.STAGE_ID, -1)[1]
 
         variable_params["gravity"] = \
             self._current_gravity
@@ -565,54 +560,47 @@ class Stage(object):
                                          interventions_dict[intervention])
             elif intervention == "floor_color":
                 for client in self._visual_object_client_instances:
-                    pybullet.changeVisualShape(
+                    client.changeVisualShape(
                         WorldConstants.FLOOR_ID,
                         -1,
                         rgbaColor=np.append(interventions_dict[intervention],
-                                            1),
-                        physicsClientId=client)
+                                            1))
                 for client in self._rigid_objects_client_instances:
-                    pybullet.changeVisualShape(
+                    client.changeVisualShape(
                         WorldConstants.FLOOR_ID,
                         -1,
                         rgbaColor=np.append(interventions_dict[intervention],
-                                            1),
-                        physicsClientId=client)
+                                            1))
             elif intervention == "stage_color":
                 for client in self._visual_object_client_instances:
-                    pybullet.changeVisualShape(
+                    client.changeVisualShape(
                         WorldConstants.STAGE_ID,
                         -1,
                         rgbaColor=np.append(interventions_dict[intervention],
-                                            1),
-                        physicsClientId=client)
+                                            1))
                 for client in self._rigid_objects_client_instances:
-                    pybullet.changeVisualShape(
+                    client.changeVisualShape(
                         WorldConstants.STAGE_ID,
                         -1,
                         rgbaColor=np.append(interventions_dict[intervention],
-                                            1),
-                        physicsClientId=client)
+                                            1))
             elif intervention == "stage_friction":
                 for client in self._rigid_objects_client_instances:
-                    pybullet.changeDynamics(
+                    client.changeDynamics(
                         bodyUniqueId=WorldConstants.STAGE_ID,
                         linkIndex=-1,
-                        lateralFriction=interventions_dict[intervention],
-                        physicsClientId=client)
+                        lateralFriction=interventions_dict[intervention])
             elif intervention == "floor_friction":
                 for client in self._rigid_objects_client_instances:
-                    pybullet.changeDynamics(
+                    client.changeDynamics(
                         bodyUniqueId=WorldConstants.FLOOR_ID,
                         linkIndex=-1,
-                        lateralFriction=interventions_dict[intervention],
-                        physicsClientId=client)
+                        lateralFriction=interventions_dict[intervention])
             elif intervention == "gravity":
                 for client in self._rigid_objects_client_instances:
-                    pybullet.setGravity(interventions_dict[intervention][0],
+                    client.setGravity(interventions_dict[intervention][0],
                                         interventions_dict[intervention][1],
-                                        interventions_dict[intervention][2],
-                                        physicsClientId=client)
+                                        interventions_dict[intervention][2])
                 self._current_gravity = interventions_dict[intervention]
             else:
                 raise Exception("The intervention on stage "
@@ -681,8 +669,7 @@ class Stage(object):
 
         :return: (bool) true if the two blocks passed are colliding.
         """
-        for contact in pybullet.getContactPoints(
-                physicsClientId=self._rigid_objects_client_instances[0]):
+        for contact in self._rigid_objects_client_instances[0].getContactPoints():
             if (contact[1] == block1._block_ids[0] and
                 contact[2] == block2._block_ids[0]) or \
                     (contact[2] == block1._block_ids[0] and
@@ -695,8 +682,7 @@ class Stage(object):
 
         :return: (bool) true if the stage is free of collisions of blocks.
         """
-        for contact in pybullet.getContactPoints(
-                physicsClientId=self._rigid_objects_client_instances[0]):
+        for contact in self._rigid_objects_client_instances[0].getContactPoints():
             if contact[1] > 3 and contact[2] > 3:
                 return False
         return True
@@ -708,8 +694,7 @@ class Stage(object):
 
         :return: (bool) true if the stage is free of collisions between blocks.
         """
-        for contact in pybullet.getContactPoints(
-                physicsClientId=self._rigid_objects_client_instances[0]):
+        for contact in self._rigid_objects_client_instances[0].getContactPoints():
             if (contact[1] == block1._block_ids[0] and contact[2] ==
                 WorldConstants.STAGE_ID) or \
                     (contact[2] == block1._block_ids[0] and contact[1] ==
@@ -724,8 +709,7 @@ class Stage(object):
 
         :return: (bool) true if the block is colliding with the floor.
         """
-        for contact in pybullet.getContactPoints(
-                physicsClientId=self._rigid_objects_client_instances[0]):
+        for contact in self._rigid_objects_client_instances[0].getContactPoints():
             if (contact[1] == block1._block_ids[0] and contact[2] ==
                 WorldConstants.FLOOR_ID) or \
                     (contact[2] == block1._block_ids[0] and contact[1] ==
@@ -742,8 +726,7 @@ class Stage(object):
         :return: (float) normal interaction force between blocks or None if
                          no interaction.
         """
-        for contact in pybullet.getContactPoints(
-                physicsClientId=self._rigid_objects_client_instances[0]):
+        for contact in self._rigid_objects_client_instances[0].getContactPoints():
             if (contact[1] == block1._block_ids[0] and contact[2] ==
                 block2._block_ids[0]) or \
                     (contact[2] == block1._block_ids[0] and contact[1] ==
@@ -816,8 +799,7 @@ class Stage(object):
                         collision state or not. As well as if the visual
                         objects are outside of the bounding box or not.
         """
-        for contact in pybullet.getContactPoints(
-                physicsClientId=self._rigid_objects_client_instances[0]):
+        for contact in self._rigid_objects_client_instances[0].getContactPoints():
             if contact[8] < -0.03:
                 return False
         #check if all the visual objects are within the bb og the available arena

@@ -8,19 +8,19 @@ from causal_world.configs.world_constants import WorldConstants
 
 class SilhouetteObject(object):
 
-    def __init__(self, pybullet_client_ids, name, size, position, orientation,
+    def __init__(self, pybullet_clients, name, size, position, orientation,
                  color):
         """
         This is the base object for a silhouette in the arena.
 
-        :param pybullet_client_ids: (list) list of pybullet client ids.
+        :param pybullet_clients: (list) list of pybullet client ids.
         :param name: (str) specifies the name of the silhouette object
         :param size: (list float) specifies the size of the object.
         :param position: (list float) x, y, z position.
         :param orientation: (list float) quaternion.
         :param color: (list float) RGB values.
         """
-        self._pybullet_client_ids = pybullet_client_ids
+        self._pybullet_clients = pybullet_clients
         self._name = name
         self._type_id = None
         self._size = size
@@ -94,11 +94,11 @@ class SilhouetteObject(object):
         """
         return
 
-    def _create_object(self, pybullet_client_id,
+    def _create_object(self, pybullet_client,
                        **kwargs):
         """
 
-        :param pybullet_client_id: (int) pybullet client id to be used when
+        :param pybullet_client: (int) pybullet client id to be used when
                                          creating the gaol itself.
         :param kwargs: (params) parameters to be used when creating the goal
                                 using the corresponding pybullet goal creation
@@ -123,9 +123,9 @@ class SilhouetteObject(object):
             Used to initialize the goal, by creating it in the arena.
         :return:
         """
-        for pybullet_client_id in self._pybullet_client_ids:
+        for pybullet_client in self._pybullet_clients:
             shape_id, block_id =\
-                self._create_object(pybullet_client_id)
+                self._create_object(pybullet_client)
             self._block_ids.append(block_id)
             self._shape_ids.append(shape_id)
         self._set_color(self._color)
@@ -147,9 +147,8 @@ class SilhouetteObject(object):
 
         :return:
         """
-        for i in range(0, len(self._pybullet_client_ids)):
-            pybullet.removeBody(self._block_ids[i],
-                                physicsClientId=self._pybullet_client_ids[i])
+        for i in range(0, len(self._pybullet_clients)):
+            self._pybullet_clients[i].removeBody(self._block_ids[i])
         self._block_ids = []
         self._shape_ids = []
         return
@@ -161,12 +160,11 @@ class SilhouetteObject(object):
 
         :return:
         """
-        for i in range(len(self._pybullet_client_ids)):
-            pybullet.changeVisualShape(
+        for i in range(len(self._pybullet_clients)):
+            self._pybullet_clients[i].changeVisualShape(
                 self._block_ids[i],
                 -1,
-                rgbaColor=np.append(color, self._alpha),
-                physicsClientId=self._pybullet_client_ids[i])
+                rgbaColor=np.append(color, self._alpha))
         return
 
     def set_pose(self, position, orientation):
@@ -179,12 +177,11 @@ class SilhouetteObject(object):
         :return:
         """
         position[-1] += WorldConstants.FLOOR_HEIGHT
-        for i in range(0, len(self._pybullet_client_ids)):
-            pybullet.resetBasePositionAndOrientation(
+        for i in range(0, len(self._pybullet_clients)):
+            self._pybullet_clients[i].resetBasePositionAndOrientation(
                 self._block_ids[i],
                 position,
-                orientation,
-                physicsClientId=self._pybullet_client_ids[i])
+                orientation)
         return
 
     def get_state(self, state_type='dict'):
@@ -198,10 +195,8 @@ class SilhouetteObject(object):
         if state_type == 'dict':
             state = dict()
             position, orientation = \
-                pybullet.getBasePositionAndOrientation(
-                self._block_ids[0],
-                physicsClientId =
-                self._pybullet_client_ids[0])
+                self._pybullet_clients[0].getBasePositionAndOrientation(
+                self._block_ids[0])
             position = np.array(position)
             position[-1] -= WorldConstants.FLOOR_HEIGHT
             state["type"] = self._type_id
@@ -213,11 +208,9 @@ class SilhouetteObject(object):
         elif state_type == 'list':
             state = []
 
-            position, orientation = pybullet.\
+            position, orientation = self._pybullet_clients[0].\
                 getBasePositionAndOrientation(
-                self._block_ids[0],
-                physicsClientId=
-                self._pybullet_client_ids[0])
+                self._block_ids[0])
             position = np.array(position)
             position[-1] -= WorldConstants.FLOOR_HEIGHT
             for name in self._state_variable_names:
@@ -243,25 +236,22 @@ class SilhouetteObject(object):
         if variable_name == 'type':
             return self._type_id
         elif variable_name == 'cartesian_position':
-            position, orientation = pybullet.getBasePositionAndOrientation(
-                self._block_ids[0],
-                physicsClientId=self._pybullet_client_ids[0])
+            position, orientation = self._pybullet_clients[0].getBasePositionAndOrientation(
+                self._block_ids[0])
             position = np.array(position)
             position[-1] -= WorldConstants.FLOOR_HEIGHT
             return position
 
         elif variable_name == 'cylindrical_position':
-            position, orientation = pybullet.getBasePositionAndOrientation(
-                self._block_ids[0],
-                physicsClientId=self._pybullet_client_ids[0])
+            position, orientation = self._pybullet_clients[0].getBasePositionAndOrientation(
+                self._block_ids[0])
             position = np.array(position)
             position[-1] -= WorldConstants.FLOOR_HEIGHT
             return cart2cyl(position)
 
         elif variable_name == 'orientation':
-            position, orientation = pybullet.getBasePositionAndOrientation(
-                self._block_ids[0],
-                physicsClientId=self._pybullet_client_ids[0])
+            position, orientation = self._pybullet_clients[0].getBasePositionAndOrientation(
+                self._block_ids[0])
             position = np.array(position)
             position[-1] -= WorldConstants.FLOOR_HEIGHT
             return orientation
@@ -312,10 +302,8 @@ class SilhouetteObject(object):
                 interventions_dict['euler_orientation'])
         if 'cartesian_position' not in interventions_dict or \
                 'orientation' not in interventions_dict:
-            position, orientation = pybullet.\
-                getBasePositionAndOrientation(self._block_ids[0],
-                                              physicsClientId=
-                                              self._pybullet_client_ids[0])
+            position, orientation = self._pybullet_clients[0].\
+                getBasePositionAndOrientation(self._block_ids[0])
             position = np.array(position)
             position[-1] -= WorldConstants.FLOOR_HEIGHT
         if 'cartesian_position' in interventions_dict:
@@ -328,13 +316,12 @@ class SilhouetteObject(object):
             self.reinit_object()
         if 'cartesian_position' in interventions_dict or 'orientation' in \
                 interventions_dict:
-            for i in range(0, len(self._pybullet_client_ids)):
+            for i in range(0, len(self._pybullet_clients)):
                 position[-1] += WorldConstants.FLOOR_HEIGHT
-                pybullet.resetBasePositionAndOrientation(
+                self._pybullet_clients[i].resetBasePositionAndOrientation(
                     self._block_ids[i],
                     position,
-                    orientation,
-                    physicsClientId=self._pybullet_client_ids[i])
+                    orientation)
         if 'color' in interventions_dict:
             self._color = interventions_dict['color']
             self._set_color(self._color)
@@ -391,10 +378,8 @@ class SilhouetteObject(object):
         :return: (nd.array) specifies the current vertices of the gaol shape.
         """
         position, orientation = \
-            pybullet.getBasePositionAndOrientation(
-                self._block_ids[0],
-                physicsClientId=
-                self._pybullet_client_ids[0])
+            self._pybullet_clients[0].getBasePositionAndOrientation(
+                self._block_ids[0])
         position = np.array(position)
         position[-1] -= WorldConstants.FLOOR_HEIGHT
         vertices = [[1, 1, -1, 1], [1, -1, -1, 1], [-1, 1, -1, 1], [-1, -1, -1, 1],
@@ -436,7 +421,7 @@ class SilhouetteObject(object):
 class SCuboid(SilhouetteObject):
 
     def __init__(self,
-                 pybullet_client_ids,
+                 pybullet_clients,
                  name,
                  size=np.array([0.065, 0.065, 0.065]),
                  position=np.array([0.0, 0.0, 0.0425]),
@@ -445,7 +430,7 @@ class SCuboid(SilhouetteObject):
         """
         This is the silhoutte cuboid object.
 
-        :param pybullet_client_ids: (list) specifies the pybullet client ids.
+        :param pybullet_clients: (list) specifies the pybullet client ids.
         :param name: (str) specifies the name of the object.
         :param size: (list float) specifies the size in the three directions.
         :param position: (list float) specifies the position in x,y,z.
@@ -453,18 +438,18 @@ class SCuboid(SilhouetteObject):
                                          the object.
         :param color: (list float) specifies the RGB values of the cuboid.
         """
-        super(SCuboid, self).__init__(pybullet_client_ids=pybullet_client_ids,
+        super(SCuboid, self).__init__(pybullet_clients=pybullet_clients,
                                       name=name,
                                       size=size,
                                       position=position,
                                       orientation=orientation,
                                       color=color)
 
-    def _create_object(self, pybullet_client_id,
+    def _create_object(self, pybullet_client,
                        **kwargs):
         """
 
-        :param pybullet_client_id: (list) specifies the pybullet client ids.
+        :param pybullet_client: (list) specifies the pybullet client ids.
         :param kwargs: (params) parameters for the goal shape creation.
 
         :return: (tuple) the first position specifies the shape_id and the
@@ -472,15 +457,13 @@ class SCuboid(SilhouetteObject):
         """
         position = np.array(self._position)
         position[-1] += WorldConstants.FLOOR_HEIGHT
-        shape_id = pybullet.createVisualShape(
+        shape_id = pybullet_client.createVisualShape(
             shapeType=pybullet.GEOM_BOX,
             halfExtents=self._size / 2,
-            rgbaColor=np.append(self._color, self._alpha),
-            physicsClientId=pybullet_client_id)
-        block_id = pybullet.createMultiBody(baseVisualShapeIndex=shape_id,
+            rgbaColor=np.append(self._color, self._alpha))
+        block_id = pybullet_client.createMultiBody(baseVisualShapeIndex=shape_id,
                                             basePosition=position,
-                                            baseOrientation=self._orientation,
-                                            physicsClientId=pybullet_client_id)
+                                            baseOrientation=self._orientation)
         return shape_id, block_id
 
     def _define_type_id(self):
@@ -500,10 +483,8 @@ class SCuboid(SilhouetteObject):
         recreation_params = dict()
         recreation_params['name'] = self._name
         recreation_params['size'] = self._size
-        position, orientation = pybullet. \
-            getBasePositionAndOrientation(self._block_ids[0],
-                                          physicsClientId=
-                                          self._pybullet_client_ids[0])
+        position, orientation = self._pybullet_clients[0]. \
+            getBasePositionAndOrientation(self._block_ids[0])
         position = np.array(position)
         position[-1] -= WorldConstants.FLOOR_HEIGHT
         recreation_params['position'] = position
@@ -515,14 +496,14 @@ class SCuboid(SilhouetteObject):
 class SSphere(SilhouetteObject):
 
     def __init__(self,
-                 pybullet_client_ids,
+                 pybullet_clients,
                  name,
                  radius=0.015,
                  position=np.array([0.0, 0.0, 0.0425]),
                  color=np.array([0, 1, 0])):
         """
 
-        :param pybullet_client_ids: (list) specifies the pybullet client ids.
+        :param pybullet_clients: (list) specifies the pybullet client ids.
         :param name: (str) specifies the name of the goal shape.
         :param radius: (float) specifies the radius of the sphere goal.
         :param position: (list float) specifies the position in x,y,z.
@@ -530,18 +511,18 @@ class SSphere(SilhouetteObject):
         """
         self._radius = radius
         size = np.array([self._radius * 2, self._radius * 2, self._radius * 2])
-        super(SSphere, self).__init__(pybullet_client_ids=pybullet_client_ids,
+        super(SSphere, self).__init__(pybullet_clients=pybullet_clients,
                                       name=name,
                                       size=size,
                                       position=position,
                                       orientation=[0, 0, 0, 1],
                                       color=color)
 
-    def _create_object(self, pybullet_client_id,
+    def _create_object(self, pybullet_client,
                        **kwargs):
         """
 
-        :param pybullet_client_id: (int) corresponding pybullet client to create
+        :param pybullet_client: (int) corresponding pybullet client to create
                                          the gaol shape in.
         :param kwargs:  (params) parameters for the goal shape creation.
 
@@ -550,15 +531,13 @@ class SSphere(SilhouetteObject):
         """
         position = np.array(self._position)
         position[-1] += WorldConstants.FLOOR_HEIGHT
-        shape_id = pybullet.createVisualShape(
+        shape_id = pybullet_client.createVisualShape(
             shapeType=pybullet.GEOM_SPHERE,
             radius=self._radius,
-            rgbaColor=np.append(self._color, self._alpha),
-            physicsClientId=pybullet_client_id)
-        block_id = pybullet.createMultiBody(baseVisualShapeIndex=shape_id,
+            rgbaColor=np.append(self._color, self._alpha))
+        block_id = pybullet_client.createMultiBody(baseVisualShapeIndex=shape_id,
                                             basePosition=position,
-                                            baseOrientation=[0, 0, 0, 1],
-                                            physicsClientId=pybullet_client_id)
+                                            baseOrientation=[0, 0, 0, 1])
         return shape_id, block_id
 
     def _define_type_id(self):
@@ -595,10 +574,8 @@ class SSphere(SilhouetteObject):
         recreation_params = dict()
         recreation_params['name'] = self._name
         recreation_params['radius'] = self._radius
-        position, orientation = pybullet. \
-            getBasePositionAndOrientation(self._block_ids[0],
-                                          physicsClientId=
-                                          self._pybullet_client_ids[0])
+        position, orientation = self._pybullet_clients[0]. \
+            getBasePositionAndOrientation(self._block_ids[0])
         position = np.array(position)
         position[-1] -= WorldConstants.FLOOR_HEIGHT
         recreation_params['position'] = position
@@ -609,7 +586,7 @@ class SSphere(SilhouetteObject):
 class SMeshObject(SilhouetteObject):
 
     def __init__(self,
-                 pybullet_client_ids,
+                 pybullet_clients,
                  name,
                  filename,
                  scale=np.array([0.01, 0.01, 0.01]),
@@ -618,7 +595,7 @@ class SMeshObject(SilhouetteObject):
                  color=np.array([0, 1, 0])):
         """
 
-        :param pybullet_client_ids: (list) specifies the pybullet clients.
+        :param pybullet_clients: (list) specifies the pybullet clients.
         :param name: (str) specifies the name of the goal.
         :param filename: (str) specifies the name of the file itself.
         :param scale: (list float) specifies the scale of the mesh goal.
@@ -629,48 +606,44 @@ class SMeshObject(SilhouetteObject):
         #TODO: intervene on friction as well
         self._scale = scale
         self._filename = filename
-        size = self._set_size(pybullet_client_ids, position, orientation)
+        size = self._set_size(pybullet_clients, position, orientation)
         super(SMeshObject,
-              self).__init__(pybullet_client_ids=pybullet_client_ids,
+              self).__init__(pybullet_clients=pybullet_clients,
                              name=name,
                              size=size,
                              position=position,
                              orientation=orientation,
                              color=color)
 
-    def _set_size(self, pybullet_client_ids, position, orientation):
+    def _set_size(self, pybullet_clients, position, orientation):
         """
 
-        :param pybullet_client_ids: (list) specifies the pybullet clients.
+        :param pybullet_clients: (list) specifies the pybullet clients.
         :param position: (list float) specifies the positions in x,y,z
         :param orientation: (list float) specifies the quaternion of the goal.
 
         :return: (list) the size of the bounding box of the object.
         """
-        temp_shape_id = pybullet.createCollisionShape(
+        temp_shape_id = pybullet_clients[0].createCollisionShape(
             shapeType=pybullet.GEOM_MESH,
             meshScale=self._scale,
-            fileName=self._filename,
-            physicsClientId=pybullet_client_ids[0])
-        temp_block_id = pybullet.createMultiBody(
+            fileName=self._filename)
+        temp_block_id = pybullet_clients[0].createMultiBody(
             baseCollisionShapeIndex=temp_shape_id,
             basePosition=position,
             baseOrientation=orientation,
-            baseMass=0.1,
-            physicsClientId=pybullet_client_ids[0])
-        bb = pybullet.getAABB(temp_block_id,
-                              physicsClientId=pybullet_client_ids[0])
+            baseMass=0.1)
+        bb = pybullet_clients[0].getAABB(temp_block_id)
         size = np.array([(bb[1][0] - bb[0][0]), (bb[1][1] - bb[0][1]),
                          (bb[1][2] - bb[0][2])])
-        pybullet.removeBody(temp_block_id,
-                            physicsClientId=pybullet_client_ids[0])
+        pybullet_clients[0].removeBody(temp_block_id)
         return size
 
-    def _create_object(self, pybullet_client_id,
+    def _create_object(self, pybullet_client,
                        **kwargs):
         """
 
-        :param pybullet_client_id: (list) specifies the pybullet clients.
+        :param pybullet_client: (list) specifies the pybullet clients.
         :param kwargs: (params) parameters for the goal shape creation.
 
         :return: (tuple) the first position specifies the shape_id and the
@@ -678,16 +651,15 @@ class SMeshObject(SilhouetteObject):
         """
         position = np.array(self._position)
         position[-1] += WorldConstants.FLOOR_HEIGHT
-        shape_id = pybullet.createVisualShape(
+        shape_id = pybullet_client.createVisualShape(
             shapeType=pybullet.GEOM_MESH,
             meshScale=self._scale,
             fileName=self._filename,
-            rgbaColor=np.append(self._color, self._alpha),
-            physicsClientId=pybullet_client_id)
-        block_id = pybullet.createMultiBody(baseVisualShapeIndex=shape_id,
+            rgbaColor=np.append(self._color, self._alpha))
+        block_id = pybullet_client.createMultiBody(baseVisualShapeIndex=shape_id,
                                             basePosition=position,
                                             baseOrientation=self._orientation,
-                                            physicsClientId=pybullet_client_id)
+                                            physicsClientId=pybullet_client)
         return shape_id, block_id
 
     def _define_type_id(self):
@@ -709,10 +681,8 @@ class SMeshObject(SilhouetteObject):
         recreation_params['name'] = self._name
         recreation_params['filename'] = self._filename
         recreation_params['scale'] = self._scale
-        position, orientation = pybullet. \
-            getBasePositionAndOrientation(self._block_ids[0],
-                                          physicsClientId=
-                                          self._pybullet_client_ids[0])
+        position, orientation = self._pybullet_clients[0]. \
+            getBasePositionAndOrientation(self._block_ids[0])
         position = np.array(position)
         position[-1] -= WorldConstants.FLOOR_HEIGHT
         recreation_params['position'] = position

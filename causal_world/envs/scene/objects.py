@@ -8,7 +8,7 @@ from causal_world.configs.world_constants import WorldConstants
 
 class RigidObject(object):
 
-    def __init__(self, pybullet_client_ids, name, size, initial_position,
+    def __init__(self, pybullet_clients, name, size, initial_position,
                  initial_orientation, mass, color, lateral_friction,
                  spinning_friction, restitution, initial_linear_velocity,
                  initial_angular_velocity, fixed_bool):
@@ -37,7 +37,7 @@ class RigidObject(object):
                                                       the yaw, roll, pitch values.
         :param fixed_bool: (bool) specifies if the object is fixed or not.
         """
-        self._pybullet_client_ids = pybullet_client_ids
+        self._pybullet_clients = pybullet_clients
         self._name = name
         self._type_id = None
         self._mass = mass
@@ -151,7 +151,7 @@ class RigidObject(object):
         """
         return
 
-    def _create_object(self, pybullet_client_id,
+    def _create_object(self, pybullet_client,
                        **kwargs):
         """
 
@@ -188,9 +188,9 @@ class RigidObject(object):
 
         :return:
         """
-        for pybullet_client_id in self._pybullet_client_ids:
+        for pybullet_client in self._pybullet_clients:
             shape_id, block_id =\
-                self._create_object(pybullet_client_id)
+                self._create_object(pybullet_client)
             self._block_ids.append(block_id)
             self._shape_ids.append(shape_id)
         self._set_color(self._color)
@@ -209,38 +209,33 @@ class RigidObject(object):
         if variable_name == 'type':
             return self._type_id
         elif variable_name == 'cartesian_position':
-            position, orientation = pybullet.getBasePositionAndOrientation(
-                self._block_ids[0],
-                physicsClientId=self._pybullet_client_ids[0])
+            position, orientation = self._pybullet_clients[0].getBasePositionAndOrientation(
+                self._block_ids[0])
             position = np.array(position)
             position[-1] -= WorldConstants.FLOOR_HEIGHT
             return position
 
         elif variable_name == 'cylindrical_position':
-            position, orientation = pybullet.getBasePositionAndOrientation(
-                self._block_ids[0],
-                physicsClientId=self._pybullet_client_ids[0])
+            position, orientation = self._pybullet_clients[0].getBasePositionAndOrientation(
+                self._block_ids[0])
             position = np.array(position)
             position[-1] -= WorldConstants.FLOOR_HEIGHT
             return cart2cyl(position)
 
         elif variable_name == 'orientation':
-            position, orientation = pybullet.getBasePositionAndOrientation(
-                self._block_ids[0],
-                physicsClientId=self._pybullet_client_ids[0])
+            position, orientation = self._pybullet_clients[0].getBasePositionAndOrientation(
+                self._block_ids[0])
             position = np.array(position)
             position[-1] -= WorldConstants.FLOOR_HEIGHT
             return orientation
         elif variable_name == 'linear_velocity':
-            linear_velocity, angular_velocity = pybullet.getBaseVelocity(
-                self._block_ids[0],
-                physicsClientId=self._pybullet_client_ids[0])
+            linear_velocity, angular_velocity = self._pybullet_clients[0].getBaseVelocity(
+                self._block_ids[0])
             return linear_velocity
 
         elif variable_name == 'angular_velocity':
-            linear_velocity, angular_velocity = pybullet.getBaseVelocity(
-                self._block_ids[0],
-                physicsClientId=self._pybullet_client_ids[0])
+            linear_velocity, angular_velocity = self._pybullet_clients[0].getBaseVelocity(
+                self._block_ids[0])
             return angular_velocity
 
         elif variable_name == 'mass':
@@ -268,9 +263,8 @@ class RigidObject(object):
 
         :return:
         """
-        for i in range(0, len(self._pybullet_client_ids)):
-            pybullet.removeBody(self._block_ids[i],
-                                physicsClientId=self._pybullet_client_ids[i])
+        for i in range(0, len(self._pybullet_clients)):
+            self._pybullet_clients[i].removeBody(self._block_ids[i])
         self._block_ids = []
         self._shape_ids = []
         return
@@ -281,12 +275,11 @@ class RigidObject(object):
         :param color: (nd.array) the normalized RGB color, shape is (3,)
         :return:
         """
-        for i in range(len(self._pybullet_client_ids)):
-            pybullet.changeVisualShape(
+        for i in range(len(self._pybullet_clients)):
+            self._pybullet_clients[i].changeVisualShape(
                 self._block_ids[i],
                 -1,
-                rgbaColor=np.append(color, 1),
-                physicsClientId=self._pybullet_client_ids[i])
+                rgbaColor=np.append(color, 1))
         return
 
     def _set_lateral_friction(self, lateral_friction):
@@ -295,12 +288,10 @@ class RigidObject(object):
         :param lateral_friction: (float) specifies the lateral friction.
         :return:
         """
-        for i in range(len(self._pybullet_client_ids)):
-            pybullet.changeDynamics(bodyUniqueId=self._block_ids[i],
+        for i in range(len(self._pybullet_clients)):
+            self._pybullet_clients[i].changeDynamics(bodyUniqueId=self._block_ids[i],
                                     linkIndex=-1,
-                                    lateralFriction=lateral_friction,
-                                    physicsClientId=
-                                    self._pybullet_client_ids[i]
+                                    lateralFriction=lateral_friction
                                     )
 
     def _set_restitution(self,restitution):
@@ -309,12 +300,11 @@ class RigidObject(object):
         :param restitution: (float) specifies the restitution.
         :return:
         """
-        for i in range(len(self._pybullet_client_ids)):
-            pybullet.changeDynamics(
+        for i in range(len(self._pybullet_clients)):
+            self._pybullet_clients[i].changeDynamics(
                 bodyUniqueId=self._block_ids[i],
                 linkIndex=-1,
-                restitution=restitution,
-                physicsClientId=self._pybullet_client_ids[i])
+                restitution=restitution)
 
     def _set_spinning_friction(self, spinning_friction):
         """
@@ -322,12 +312,11 @@ class RigidObject(object):
         :param spinning_friction: (float) specifies the spinning friction.
         :return:
         """
-        for i in range(len(self._pybullet_client_ids)):
-            pybullet.changeDynamics(
+        for i in range(len(self._pybullet_clients)):
+            self._pybullet_clients[i].changeDynamics(
                 bodyUniqueId=self._block_ids[i],
                 linkIndex=-1,
-                spinningFriction=spinning_friction,
-                physicsClientId=self._pybullet_client_ids[i])
+                spinningFriction=spinning_friction)
 
     def _set_velocities(self):
         """
@@ -335,12 +324,11 @@ class RigidObject(object):
 
         :return:
         """
-        for i in range(0, len(self._pybullet_client_ids)):
-            pybullet.resetBaseVelocity(
+        for i in range(0, len(self._pybullet_clients)):
+            self._pybullet_clients[i].resetBaseVelocity(
                 self._block_ids[i],
                 self._initial_linear_velocity,
-                self._initial_angular_velocity,
-                physicsClientId=self._pybullet_client_ids[i])
+                self._initial_angular_velocity)
 
     def set_pose(self, position, orientation):
         """
@@ -350,13 +338,12 @@ class RigidObject(object):
                                        of the object.
         :return:
         """
-        for i in range(0, len(self._pybullet_client_ids)):
+        for i in range(0, len(self._pybullet_clients)):
             position[-1] += WorldConstants.FLOOR_HEIGHT
-            pybullet.resetBasePositionAndOrientation(
+            self._pybullet_clients[i].resetBasePositionAndOrientation(
                 self._block_ids[i],
                 position,
-                orientation,
-                physicsClientId=self._pybullet_client_ids[i])
+                orientation)
         return
 
     def get_state(self, state_type='dict'):
@@ -368,10 +355,8 @@ class RigidObject(object):
         if state_type == 'dict':
             state = dict()
             position, orientation = \
-                pybullet.getBasePositionAndOrientation(
-                self._block_ids[0],
-                physicsClientId =
-                self._pybullet_client_ids[0])
+                self._pybullet_clients[0].getBasePositionAndOrientation(
+                self._block_ids[0])
             position = np.array(position)
             position[-1] -= WorldConstants.FLOOR_HEIGHT
             state["type"] = self._type_id
@@ -384,28 +369,22 @@ class RigidObject(object):
 
             if self.is_not_fixed():
                 linear_velocity, angular_velocity = \
-                    pybullet.getBaseVelocity(self._block_ids[0],
-                                             physicsClientId=
-                                             self._pybullet_client_ids[0])
+                    self._pybullet_clients[0].getBaseVelocity(self._block_ids[0])
                 state["linear_velocity"] = np.array(linear_velocity)
                 state["angular_velocity"] = np.array(angular_velocity)
                 state["mass"] = self._mass
         elif state_type == 'list':
             state = []
 
-            position, orientation = pybullet.\
+            position, orientation = self._pybullet_clients[0].\
                 getBasePositionAndOrientation(
-                self._block_ids[0],
-                physicsClientId=
-                self._pybullet_client_ids[0])
+                self._block_ids[0])
             position = np.array(position)
             position[-1] -= WorldConstants.FLOOR_HEIGHT
             if self.is_not_fixed():
-                linear_velocity, angular_velocity = pybullet.\
+                linear_velocity, angular_velocity = self._pybullet_clients[0].\
                     getBaseVelocity(
-                    self._block_ids[0],
-                    physicsClientId=
-                    self._pybullet_client_ids[0])
+                    self._block_ids[0])
             for name in self._state_variable_names:
                 if name == 'type':
                     state.append(self._type_id)
@@ -467,10 +446,8 @@ class RigidObject(object):
                 interventions_dict['euler_orientation'])
         if 'cartesian_position' not in interventions_dict or \
                 'orientation' not in interventions_dict:
-            position, orientation = pybullet.\
-                getBasePositionAndOrientation(self._block_ids[0],
-                                              physicsClientId=
-                                              self._pybullet_client_ids[0])
+            position, orientation = self._pybullet_clients[0].\
+                getBasePositionAndOrientation(self._block_ids[0])
             position = np.array(position)
             position[-1] -= WorldConstants.FLOOR_HEIGHT
         if 'cartesian_position' in interventions_dict:
@@ -486,48 +463,43 @@ class RigidObject(object):
             self._set_volume()
             self.reinit_object()
         elif 'mass' in interventions_dict:
-            for i in range(0, len(self._pybullet_client_ids)):
-                pybullet.changeDynamics(
+            for i in range(0, len(self._pybullet_clients)):
+                self._pybullet_clients[i].changeDynamics(
                     self._block_ids[i],
                     -1,
-                    mass=self._mass,
-                    physicsClientId=self._pybullet_client_ids[i])
+                    mass=self._mass)
         elif 'friction' in interventions_dict:
             self._set_lateral_friction(self._lateral_friction)
 
         if 'cartesian_position' in interventions_dict or 'orientation' in \
                 interventions_dict:
-            for i in range(0, len(self._pybullet_client_ids)):
+            for i in range(0, len(self._pybullet_clients)):
                 position[-1] += WorldConstants.FLOOR_HEIGHT
-                pybullet.resetBasePositionAndOrientation(
+                self._pybullet_clients[i].resetBasePositionAndOrientation(
                     self._block_ids[i],
                     position,
-                    orientation,
-                    physicsClientId=self._pybullet_client_ids[i])
+                    orientation)
 
         if 'color' in interventions_dict:
             self._color = interventions_dict['color']
             self._set_color(self._color)
         if ('linear_velocity' in interventions_dict) ^ \
                 ('angular_velocity' in interventions_dict):
-            for i in range(0, len(self._pybullet_client_ids)):
+            for i in range(0, len(self._pybullet_clients)):
                 linear_velocity, angular_velocity = \
-                    pybullet.getBaseVelocity(
-                    self._block_ids[i],
-                    physicsClientId=
-                    self._pybullet_client_ids[i])
+                    self._pybullet_clients[i].getBaseVelocity(
+                    self._block_ids[i])
         if 'linear_velocity' in interventions_dict:
             linear_velocity = interventions_dict['linear_velocity']
         if 'angular_velocity' in interventions_dict:
             angular_velocity = interventions_dict['angular_velocity']
         if 'angular_velocity' in interventions_dict or 'linear_velocity' in \
                 interventions_dict:
-            for i in range(0, len(self._pybullet_client_ids)):
-                pybullet.resetBaseVelocity(
+            for i in range(0, len(self._pybullet_clients)):
+                self._pybullet_clients[i].resetBaseVelocity(
                     self._block_ids[i],
                     linear_velocity,
-                    angular_velocity,
-                    physicsClientId=self._pybullet_client_ids[i])
+                    angular_velocity)
         return
 
     def get_state_variable_names(self):
@@ -568,8 +540,7 @@ class RigidObject(object):
                             array is the upper bound of the bounding box.
         """
         #should be the same in both
-        bb = pybullet.getAABB(self._block_ids[0],
-                              physicsClientId=self._pybullet_client_ids[0])
+        bb = self._pybullet_clients[0].getAABB(self._block_ids[0])
         bb = np.array(bb)
         bb[0][-1] -= WorldConstants.FLOOR_HEIGHT
         bb[1][-1] -= WorldConstants.FLOOR_HEIGHT
@@ -580,11 +551,9 @@ class RigidObject(object):
 
         :return: (nd.array) specifies the current vertices of the object.
         """
-        position, orientation = pybullet.\
+        position, orientation = self._pybullet_clients[0].\
             getBasePositionAndOrientation(
-            self._block_ids[0],
-            physicsClientId=
-            self._pybullet_client_ids[0]
+            self._block_ids[0]
         )
         position = np.array(position)
         position[-1] -= WorldConstants.FLOOR_HEIGHT
@@ -599,11 +568,9 @@ class RigidObject(object):
 
         :return: (nd.array) returns the transformation matrix of the object.
         """
-        position, orientation = pybullet.\
+        position, orientation = self._pybullet_clients[0].\
             getBasePositionAndOrientation(
-            self._block_ids[0],
-            physicsClientId=
-            self._pybullet_client_ids[0]
+            self._block_ids[0]
         )
         position = np.array(position)
         position[-1] -= WorldConstants.FLOOR_HEIGHT
@@ -615,11 +582,9 @@ class RigidObject(object):
 
         :return: (nd.array) returns the rotation matrix of the object.
         """
-        position, orientation = pybullet.\
+        position, orientation = self._pybullet_clients[0].\
             getBasePositionAndOrientation(
-            self._block_ids[0],
-            physicsClientId=
-            self._pybullet_client_ids[0]
+            self._block_ids[0]
         )
         position = np.array(position)
         position[-1] -= WorldConstants.FLOOR_HEIGHT
@@ -660,7 +625,7 @@ class Cuboid(RigidObject):
 
     def __init__(
             self,
-            pybullet_client_ids,
+            pybullet_clients,
             name,
             size=np.array([0.065, 0.065, 0.065]),
             initial_position=np.array([0.0, 0.0, 0.0425]),
@@ -690,7 +655,7 @@ class Cuboid(RigidObject):
         """
 
         #TODO: intervene on friction as well
-        super(Cuboid, self).__init__(pybullet_client_ids=pybullet_client_ids,
+        super(Cuboid, self).__init__(pybullet_clients=pybullet_clients,
                                      name=name,
                                      size=size,
                                      initial_position=initial_position,
@@ -706,7 +671,7 @@ class Cuboid(RigidObject):
                                      initial_angular_velocity=
                                      initial_angular_velocity)
 
-    def _create_object(self, pybullet_client_id,
+    def _create_object(self, pybullet_client,
                        **kwargs):
         """
 
@@ -717,18 +682,16 @@ class Cuboid(RigidObject):
         :return: (tuple) the first position specifies the shape_id and the
                          second specifies the block id for pybullet.
         """
-        shape_id = pybullet.createCollisionShape(
+        shape_id = pybullet_client.createCollisionShape(
             shapeType=pybullet.GEOM_BOX,
-            halfExtents=np.array(self._size) / 2,
-            physicsClientId=pybullet_client_id)
+            halfExtents=np.array(self._size) / 2)
         position = np.array(self._initial_position)
         position[-1] += WorldConstants.FLOOR_HEIGHT
-        block_id = pybullet.createMultiBody(
+        block_id = pybullet_client.createMultiBody(
             baseCollisionShapeIndex=shape_id,
             basePosition=position,
             baseOrientation=self._initial_orientation,
-            baseMass=self._mass,
-            physicsClientId=pybullet_client_id)
+            baseMass=self._mass)
         return shape_id, block_id
 
     def _define_type_id(self):
@@ -749,14 +712,10 @@ class Cuboid(RigidObject):
         recreation_params['name'] = self._name
         recreation_params['size'] = self._size
         linear_velocity, angular_velocity = \
-            pybullet.getBaseVelocity(
-                self._block_ids[0],
-                physicsClientId=
-                self._pybullet_client_ids[0])
-        position, orientation = pybullet. \
-            getBasePositionAndOrientation(self._block_ids[0],
-                                          physicsClientId=
-                                          self._pybullet_client_ids[0])
+            self._pybullet_clients[0].getBaseVelocity(
+                self._block_ids[0])
+        position, orientation = self._pybullet_clients[0]. \
+            getBasePositionAndOrientation(self._block_ids[0])
         position = np.array(position)
         position[-1] -= WorldConstants.FLOOR_HEIGHT
         recreation_params['initial_position'] = position
@@ -774,7 +733,7 @@ class Cuboid(RigidObject):
 class StaticCuboid(RigidObject):
 
     def __init__(self,
-                 pybullet_client_ids,
+                 pybullet_clients,
                  name,
                  size=np.array([0.065, 0.065, 0.065]),
                  position=np.array([0.0, 0.0, 0.0425]),
@@ -793,8 +752,8 @@ class StaticCuboid(RigidObject):
         :param lateral_friction: (float) specifies the lateral friction.
         """
         #TODO: intervene on friction as well
-        super(StaticCuboid, self).__init__(pybullet_client_ids=
-                                           pybullet_client_ids,
+        super(StaticCuboid, self).__init__(pybullet_clients=
+                                           pybullet_clients,
                                            name=name,
                                            size=size,
                                            initial_position=position,
@@ -810,7 +769,7 @@ class StaticCuboid(RigidObject):
                                            initial_angular_velocity=
                                            [0, 0, 0])
 
-    def _create_object(self, pybullet_client_id,
+    def _create_object(self, pybullet_client,
                        **kwargs):
         """
 
@@ -823,16 +782,14 @@ class StaticCuboid(RigidObject):
         """
         position = np.array(self._initial_position)
         position[-1] += WorldConstants.FLOOR_HEIGHT
-        shape_id = pybullet.createCollisionShape(
+        shape_id = pybullet_client.createCollisionShape(
             shapeType=pybullet.GEOM_BOX,
-            halfExtents=np.array(self._size) / 2,
-            physicsClientId=pybullet_client_id)
-        block_id = pybullet.createMultiBody(
+            halfExtents=np.array(self._size) / 2)
+        block_id = pybullet_client.createMultiBody(
             baseCollisionShapeIndex=shape_id,
             basePosition=position,
             baseOrientation=self._initial_orientation,
-            baseMass=self._mass,
-            physicsClientId=pybullet_client_id)
+            baseMass=self._mass)
         return shape_id, block_id
 
     def _define_type_id(self):
@@ -852,10 +809,8 @@ class StaticCuboid(RigidObject):
         recreation_params = dict()
         recreation_params['name'] = self._name
         recreation_params['size'] = self._size
-        position, orientation = pybullet. \
-            getBasePositionAndOrientation(self._block_ids[0],
-                                          physicsClientId=
-                                          self._pybullet_client_ids[0])
+        position, orientation = self._pybullet_clients[0]. \
+            getBasePositionAndOrientation(self._block_ids[0])
         position = np.array(position)
         position[-1] -= WorldConstants.FLOOR_HEIGHT
         recreation_params['position'] = position
@@ -868,7 +823,7 @@ class StaticCuboid(RigidObject):
 class MeshObject(RigidObject):
 
     def __init__(self,
-                 pybullet_client_ids,
+                 pybullet_clients,
                  name,
                  filename,
                  scale=np.array([0.01, 0.01, 0.01]),
@@ -897,7 +852,7 @@ class MeshObject(RigidObject):
         self._scale = scale
         self._filename = filename
         super(MeshObject,
-              self).__init__(pybullet_client_ids=pybullet_client_ids,
+              self).__init__(pybullet_clients=pybullet_clients,
                              name=name,
                              size=[0, 0, 0],
                              initial_position=initial_position,
@@ -914,7 +869,7 @@ class MeshObject(RigidObject):
         self._size = np.array([(bb[1][0] - bb[0][0]), (bb[1][1] - bb[0][1]),
                                (bb[1][2] - bb[0][2])])
 
-    def _create_object(self, pybullet_client_id,
+    def _create_object(self, pybullet_client,
                        **kwargs):
         """
 
@@ -927,17 +882,15 @@ class MeshObject(RigidObject):
         """
         position = np.array(self._initial_position)
         position[-1] += WorldConstants.FLOOR_HEIGHT
-        shape_id = pybullet.createCollisionShape(
+        shape_id = pybullet_client.createCollisionShape(
             shapeType=pybullet.GEOM_MESH,
             meshScale=self._scale,
-            fileName=self._filename,
-            physicsClientId=pybullet_client_id)
-        block_id = pybullet.createMultiBody(
+            fileName=self._filename)
+        block_id = pybullet_client.createMultiBody(
             baseCollisionShapeIndex=shape_id,
             basePosition=position,
             baseOrientation=self._initial_orientation,
-            baseMass=self._mass,
-            physicsClientId=pybullet_client_id)
+            baseMass=self._mass)
         return shape_id, block_id
 
     def _define_type_id(self):
@@ -958,15 +911,11 @@ class MeshObject(RigidObject):
         recreation_params['name'] = self._name
         recreation_params['filename'] = self._filename
         recreation_params['scale'] = self._scale
-        position, orientation = pybullet. \
-            getBasePositionAndOrientation(self._block_ids[0],
-                                          physicsClientId=
-                                          self._pybullet_client_ids[0])
+        position, orientation = self._pybullet_clients[0]. \
+            getBasePositionAndOrientation(self._block_ids[0])
         linear_velocity, angular_velocity = \
-            pybullet.getBaseVelocity(
-                self._block_ids[0],
-                physicsClientId=
-                self._pybullet_client_ids[0])
+            self._pybullet_clients[0].getBaseVelocity(
+                self._block_ids[0])
         position = np.array(position)
         position[-1] -= WorldConstants.FLOOR_HEIGHT
         recreation_params['initial_position'] = position

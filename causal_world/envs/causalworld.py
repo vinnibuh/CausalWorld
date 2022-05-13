@@ -3,6 +3,7 @@ import gym
 import pkgutil
 import pybullet
 import pybullet_data
+from pybullet_utils import bullet_client as bc
 import os
 from causal_world.envs.robot.trifinger import TriFingerRobot
 from causal_world.envs.scene.stage import Stage
@@ -99,9 +100,9 @@ class CausalWorld(gym.Env):
         self._camera_indicies = np.array(camera_indicies)
         self._skip_frame = skip_frame
         self.dt = self._simulation_time * self._skip_frame
-        self._pybullet_client_w_o_goal_id = None
-        self._pybullet_client_w_goal_id = None
-        self._pybullet_client_full_id = None
+        self._pb_client_w_o_goal = None
+        self._pb_client_w_goal = None
+        self._pb_client_full = None
         self._revolute_joint_ids = None
         self._initialize_all_clients = initialize_all_clients
         self._instantiate_pybullet()
@@ -134,15 +135,15 @@ class CausalWorld(gym.Env):
             self._full_cameras.append(
                 Camera(camera_position=cam_position,
                     camera_orientation=cam_orientation,
-                    pybullet_client_id=self._pybullet_client_full_id))
+                    pb_client_id=self._pb_client_full))
             # self._tool_cameras.append(
             #     Camera(camera_position=cam_position,
             #         camera_orientation=cam_orientation,
-            #         pybullet_client_id=self._pybullet_client_full_id))
+            #         pb_client_id=self._pb_client_full))
             # self._goal_cameras.append(
             #     Camera(camera_position=cam_position,
             #         camera_orientation=cam_orientation,
-            #         pybullet_client_id=self._pybullet_client_w_goal_id))
+            #         pb_client_id=self._pb_client_w_goal))
         
         self._robot = TriFingerRobot(
             action_mode=action_mode,
@@ -151,9 +152,7 @@ class CausalWorld(gym.Env):
             normalize_actions=normalize_actions,
             normalize_observations=normalize_observations,
             simulation_time=self._simulation_time,
-            pybullet_client_full_id=self._pybullet_client_full_id,
-            pybullet_client_w_goal_id=self._pybullet_client_w_goal_id,
-            pybullet_client_w_o_goal_id=self._pybullet_client_w_o_goal_id,
+            pb_client_full=self._pb_client_full,
             revolute_joint_ids=self._revolute_joint_ids,
             finger_tip_ids=self.finger_tip_ids,
             cameras=self._tool_cameras,
@@ -161,9 +160,7 @@ class CausalWorld(gym.Env):
         self._stage = Stage(
             observation_mode=observation_mode,
             normalize_observations=normalize_observations,
-            pybullet_client_full_id=self._pybullet_client_full_id,
-            pybullet_client_w_goal_id=self._pybullet_client_w_goal_id,
-            pybullet_client_w_o_goal_id=self._pybullet_client_w_o_goal_id,
+            pb_client_full=self._pb_client_full,
             cameras=self._goal_cameras,
             camera_indicies=self._camera_indicies)
         gym.Env.__init__(self)
@@ -543,28 +540,15 @@ class CausalWorld(gym.Env):
 
         :return: (nd.array) an RGB image taken from above the platform.
         """
-        if image_content == 'full':
-            if self._pybullet_client_full_id is None:
-                raise ValueError("Corresponding PyBullet client has not been initialized")
-            client = self._pybullet_client_full_id
-        elif image_content == 'robot':
-            if self._pybullet_client_w_o_goal_id is None:
-                raise ValueError("Corresponding PyBullet client has not been initialized")
-            client = self._pybullet_client_w_o_goal_id
-        elif image_content == 'goal':
-            if self._pybullet_client_w_goal_id is None:
-                raise ValueError("Corresponding PyBullet client has not been initialized")
-            client = self._pybullet_client_w_goal_id
         images = []
         segm_masks = []
         for view_matrix, proj_matrix in zip(self.view_matrices, self.proj_matrices):
-            (_, _, px, _, segm) = pybullet.getCameraImage(
+            (_, _, px, _, segm) = self._pb_client_full.getCameraImage(
                 width=self._render_width,
                 height=self._render_height,
                 viewMatrix=view_matrix,
                 projectionMatrix=proj_matrix,
                 renderer=pybullet.ER_BULLET_HARDWARE_OPENGL,
-                physicsClientId=client, 
                 # flags=pybullet.ER_SEGMENTATION_MASK_OBJECT_AND_LINKINDEX
                 )
             rgb_array = np.array(px)
@@ -598,18 +582,6 @@ class CausalWorld(gym.Env):
 
         :return:
         """
-        if image_content == 'full':
-            if self._pybullet_client_full_id is None:
-                raise ValueError("Corresponding PyBullet client has not been initialized")
-            client = self._pybullet_client_full_id
-        elif image_content == 'robot':
-            if self._pybullet_client_w_o_goal_id is None:
-                raise ValueError("Corresponding PyBullet client has not been initialized")
-            client = self._pybullet_client_w_o_goal_id
-        elif image_content == 'goal':
-            if self._pybullet_client_w_goal_id is None:
-                raise ValueError("Corresponding PyBullet client has not been initialized")
-            client = self._pybullet_client_w_goal_id
 
         self.view_matrices = []
         self.proj_matrices = []
@@ -617,20 +589,18 @@ class CausalWorld(gym.Env):
                               self._render_pitches, 
                               self._render_distances,
                               self._render_base_positions):
-            self.view_matrices.append(pybullet.computeViewMatrixFromYawPitchRoll(
+            self.view_matrices.append(self._pb_client_full.computeViewMatrixFromYawPitchRoll(
                 cameraTargetPosition=base_pos,
                 distance=dist,
                 yaw=yaw,
                 pitch=pitch,
                 roll=0,
-                upAxisIndex=2,
-                physicsClientId=client))
-            self.proj_matrices.append(pybullet.computeProjectionMatrixFOV(
+                upAxisIndex=2))
+            self.proj_matrices.append(self._pb_client_full.computeProjectionMatrixFOV(
                 fov=60,
                 aspect=float(self._render_width) / self._render_height,
                 nearVal=0.1,
-                farVal=100.0,
-                physicsClientId=client))
+                farVal=100.0))
         return
 
     def get_current_state_variables(self):
@@ -820,72 +790,63 @@ class CausalWorld(gym.Env):
         finger_base_orientation = [0, 0, 0, 1]
         if initialize_goal_image:
             client_list = [
-                self._pybullet_client_w_o_goal_id,
-                self._pybullet_client_w_goal_id, self._pybullet_client_full_id
+                self._pb_client_w_o_goal,
+                self._pb_client_w_goal, self._pb_client_full
             ]
         else:
             client_list = [
-                self._pybullet_client_w_o_goal_id, self._pybullet_client_full_id
+                self._pb_client_w_o_goal, self._pb_client_full
             ]
 
-        for client in client_list:
-            if client is not None:
-                pybullet.setAdditionalSearchPath(pybullet_data.getDataPath(),
-                                                 physicsClientId=client)
-                pybullet.setGravity(0, 0, -9.81, physicsClientId=client)
-                pybullet.setTimeStep(self._simulation_time,
-                                     physicsClientId=client)
-                pybullet.loadURDF("plane_transparent.urdf", [0, 0, 0],
-                                  physicsClientId=client)
-                pybullet.loadURDF(fileName=self._finger_urdf_path,
-                                  basePosition=finger_base_position,
-                                  baseOrientation=finger_base_orientation,
-                                  useFixedBase=1,
-                                  flags=(pybullet.URDF_USE_INERTIA_FROM_FILE |
-                                         pybullet.URDF_USE_SELF_COLLISION),
-                                  physicsClientId=client)
-                if self.link_name_to_index is None:
-                    self.link_name_to_index = {
-                        pybullet.getBodyInfo(WorldConstants.ROBOT_ID,
-                                             physicsClientId=client)[0].decode("UTF-8"):
-                            -1,
-                    }
-                    for joint_idx in range(
-                            pybullet.getNumJoints(WorldConstants.ROBOT_ID,
-                                                  physicsClientId=client)):
-                        link_name = pybullet.getJointInfo(
-                            WorldConstants.ROBOT_ID,
-                            joint_idx,
-                            physicsClientId=client)[12].decode("UTF-8")
-                        self.link_name_to_index[link_name] = joint_idx
+        if self._pb_client_full is not None:
+            self._pb_client_full.setAdditionalSearchPath(pybullet_data.getDataPath())
+            self._pb_client_full.setGravity(0, 0, -9.81)
+            self._pb_client_full.setTimeStep(self._simulation_time)
+            self._pb_client_full.loadURDF("plane_transparent.urdf", [0, 0, 0])
+            self._pb_client_full.loadURDF(fileName=self._finger_urdf_path,
+                                basePosition=finger_base_position,
+                                baseOrientation=finger_base_orientation,
+                                useFixedBase=1,
+                                flags=(pybullet.URDF_USE_INERTIA_FROM_FILE |
+                                        pybullet.URDF_USE_SELF_COLLISION))
+            if self.link_name_to_index is None:
+                self.link_name_to_index = {
+                    self._pb_client_full.getBodyInfo(WorldConstants.ROBOT_ID)[0].decode("UTF-8"):
+                        -1,
+                }
+                for joint_idx in range(
+                        self._pb_client_full.getNumJoints(WorldConstants.ROBOT_ID)):
+                    link_name = self._pb_client_full.getJointInfo(
+                        WorldConstants.ROBOT_ID,
+                        joint_idx)[12].decode("UTF-8")
+                    self.link_name_to_index[link_name] = joint_idx
 
-                    self._revolute_joint_ids = [
-                        self.link_name_to_index[name]
-                        for name in WorldConstants.JOINT_NAMES
-                    ]
-                    self.finger_tip_ids = [
-                        self.link_name_to_index[name]
-                        for name in WorldConstants.TIP_LINK_NAMES
-                    ]
-                    self.finger_link_ids = self._revolute_joint_ids
-                    self.last_joint_position = [0] * len(
-                        self._revolute_joint_ids)
-                for link_id in self.finger_link_ids:
-                    pybullet.changeDynamics(
-                        bodyUniqueId=WorldConstants.ROBOT_ID,
-                        linkIndex=link_id,
-                        maxJointVelocity=1e3,
-                        restitution=0.8,
-                        jointDamping=0.0,
-                        lateralFriction=0.1,
-                        spinningFriction=0.1,
-                        rollingFriction=0.1,
-                        linearDamping=0.5,
-                        angularDamping=0.5,
-                        contactStiffness=0.1,
-                        contactDamping=0.05,
-                        physicsClientId=client)
-                self._create_stage(client)
+                self._revolute_joint_ids = [
+                    self.link_name_to_index[name]
+                    for name in WorldConstants.JOINT_NAMES
+                ]
+                self.finger_tip_ids = [
+                    self.link_name_to_index[name]
+                    for name in WorldConstants.TIP_LINK_NAMES
+                ]
+                self.finger_link_ids = self._revolute_joint_ids
+                self.last_joint_position = [0] * len(
+                    self._revolute_joint_ids)
+            for link_id in self.finger_link_ids:
+                self._pb_client_full.changeDynamics(
+                    bodyUniqueId=WorldConstants.ROBOT_ID,
+                    linkIndex=link_id,
+                    maxJointVelocity=1e3,
+                    restitution=0.8,
+                    jointDamping=0.0,
+                    lateralFriction=0.1,
+                    spinningFriction=0.1,
+                    rollingFriction=0.1,
+                    linearDamping=0.5,
+                    angularDamping=0.5,
+                    contactStiffness=0.1,
+                    contactDamping=0.05)
+            self._create_stage(self._pb_client_full)
         return
 
     def _reset_world(self):
@@ -894,25 +855,17 @@ class CausalWorld(gym.Env):
 
         :return:
         """
-        if self._pybullet_client_full_id is not None:
-            pybullet.resetSimulation(
-                physicsClientId=self._pybullet_client_full_id)
-            pybullet.setPhysicsEngineParameter(
-                deterministicOverlappingPairs=1,
-                physicsClientId=self._pybullet_client_full_id)
-        if self._pybullet_client_w_o_goal_id is not None:
-            pybullet.resetSimulation(
-                physicsClientId=self._pybullet_client_w_o_goal_id)
-            pybullet.setPhysicsEngineParameter(
-                deterministicOverlappingPairs=1,
-                physicsClientId=self._pybullet_client_w_o_goal_id)
+        if self._pb_client_full is not None:
+            self._pb_client_full.resetSimulation()
+            self._pb_client_full.setPhysicsEngineParameter(
+                deterministicOverlappingPairs=1)
         return
 
-    def _create_stage(self, pybullet_client):
+    def _create_stage(self):
         """
         creates the stage of the simulation by loading the .stl files.
 
-        :param pybullet_client: (int) the pybuller client to create the
+        :param pb_client: (int) the pybuller client to create the
                                       stage in.
         :return:
         """
@@ -923,35 +876,29 @@ class CausalWorld(gym.Env):
 
         table_colour = (0.31, 0.27, 0.25, 1.0)
         high_border_colour = (0.95, 0.95, 0.95, 1.0)
-        floor_id = pybullet.createCollisionShape(
+        floor_id = self._pb_client_full.createCollisionShape(
             shapeType=pybullet.GEOM_MESH,
             fileName=mesh_path("trifinger_table_without_border.stl"),
-            flags=0,
-            physicsClientId=pybullet_client)
-        obj = pybullet.createMultiBody(baseCollisionShapeIndex=floor_id,
+            flags=0)
+        obj = self._pb_client_full.createMultiBody(baseCollisionShapeIndex=floor_id,
                                        baseVisualShapeIndex=-1,
                                        basePosition=[0, 0, 0.01],
-                                       baseOrientation=[0, 0, 0, 1],
-                                       physicsClientId=pybullet_client)
-        pybullet.changeVisualShape(obj,
+                                       baseOrientation=[0, 0, 0, 1])
+        self._pb_client_full.changeVisualShape(obj,
                                    -1,
-                                   rgbaColor=table_colour,
-                                   physicsClientId=pybullet_client)
+                                   rgbaColor=table_colour)
 
-        stage_id = pybullet.createCollisionShape(
+        stage_id = self._pb_client_full.createCollisionShape(
             shapeType=pybullet.GEOM_MESH,
             fileName=mesh_path("edu/frame_wall.stl"),
-            flags=pybullet.GEOM_FORCE_CONCAVE_TRIMESH,
-            physicsClientId=pybullet_client)
-        obj = pybullet.createMultiBody(baseCollisionShapeIndex=stage_id,
+            flags=pybullet.GEOM_FORCE_CONCAVE_TRIMESH)
+        obj = self._pb_client_full.createMultiBody(baseCollisionShapeIndex=stage_id,
                                        baseVisualShapeIndex=-1,
                                        basePosition=[0, 0, 0.01],
-                                       baseOrientation=[0, 0, 0, 1],
-                                       physicsClientId=pybullet_client)
-        pybullet.changeVisualShape(obj,
+                                       baseOrientation=[0, 0, 0, 1])
+        self._pb_client_full.changeVisualShape(obj,
                                    -1,
-                                   rgbaColor=high_border_colour,
-                                   physicsClientId=pybullet_client)
+                                   rgbaColor=high_border_colour)
         return
 
     def _instantiate_pybullet(self):
@@ -961,127 +908,27 @@ class CausalWorld(gym.Env):
 
         :return:
         """
-        if self._observation_mode == 'pixel':
-            self._pybullet_client_w_o_goal_id = pybullet.connect(
-                pybullet.DIRECT)
-            pybullet.configureDebugVisualizer(
-                pybullet.COV_ENABLE_GUI,
-                0,
-                physicsClientId=self._pybullet_client_w_o_goal_id)
-            pybullet.configureDebugVisualizer(
-                pybullet.COV_ENABLE_SEGMENTATION_MARK_PREVIEW,
-                0,
-                physicsClientId=self._pybullet_client_w_o_goal_id)
-            pybullet.configureDebugVisualizer(
-                pybullet.COV_ENABLE_DEPTH_BUFFER_PREVIEW,
-                0,
-                physicsClientId=self._pybullet_client_w_o_goal_id)
-            pybullet.configureDebugVisualizer(
-                pybullet.COV_ENABLE_RGB_BUFFER_PREVIEW,
-                0,
-                physicsClientId=self._pybullet_client_w_o_goal_id)
-            pybullet.resetSimulation(
-                physicsClientId=self._pybullet_client_w_o_goal_id)
-            pybullet.setPhysicsEngineParameter(
-                deterministicOverlappingPairs=1,
-                physicsClientId=self._pybullet_client_w_o_goal_id)
-            self._pybullet_client_w_goal_id = pybullet.connect(pybullet.DIRECT)
-            pybullet.configureDebugVisualizer(
-                pybullet.COV_ENABLE_GUI,
-                0,
-                physicsClientId=self._pybullet_client_w_goal_id)
-            pybullet.configureDebugVisualizer(
-                pybullet.COV_ENABLE_SEGMENTATION_MARK_PREVIEW,
-                0,
-                physicsClientId=self._pybullet_client_w_goal_id)
-            pybullet.configureDebugVisualizer(
-                pybullet.COV_ENABLE_DEPTH_BUFFER_PREVIEW,
-                0,
-                physicsClientId=self._pybullet_client_w_goal_id)
-            pybullet.configureDebugVisualizer(
-                pybullet.COV_ENABLE_RGB_BUFFER_PREVIEW,
-                0,
-                physicsClientId=self._pybullet_client_w_goal_id)
-            pybullet.resetSimulation(
-                physicsClientId=self._pybullet_client_w_goal_id)
-            pybullet.setPhysicsEngineParameter(
-                deterministicOverlappingPairs=1,
-                physicsClientId=self._pybullet_client_w_goal_id)
-            if self._initialize_all_clients:
-                self._pybullet_client_full_id = pybullet.connect(
-                    pybullet.DIRECT)
-                pybullet.configureDebugVisualizer(
-                    pybullet.COV_ENABLE_GUI,
-                    0,
-                    physicsClientId=self._pybullet_client_full_id)
-                pybullet.configureDebugVisualizer(
-                    pybullet.COV_ENABLE_SEGMENTATION_MARK_PREVIEW,
-                    0,
-                    physicsClientId=self._pybullet_client_full_id)
-                pybullet.configureDebugVisualizer(
-                    pybullet.COV_ENABLE_DEPTH_BUFFER_PREVIEW,
-                    0,
-                    physicsClientId=self._pybullet_client_full_id)
-                pybullet.configureDebugVisualizer(
-                    pybullet.COV_ENABLE_RGB_BUFFER_PREVIEW,
-                    0,
-                    physicsClientId=self._pybullet_client_full_id)
-                pybullet.resetSimulation(
-                    physicsClientId=self._pybullet_client_full_id)
-                pybullet.setPhysicsEngineParameter(
-                    deterministicOverlappingPairs=1,
-                    physicsClientId=self._pybullet_client_full_id)
-            if self._enable_visualization:
-                self._pybullet_client_full_id = pybullet.connect(pybullet.GUI)
-                pybullet.configureDebugVisualizer(
-                    pybullet.COV_ENABLE_GUI,
-                    0,
-                    physicsClientId=self._pybullet_client_full_id)
-                pybullet.configureDebugVisualizer(
-                    pybullet.COV_ENABLE_SEGMENTATION_MARK_PREVIEW,
-                    0,
-                    physicsClientId=self._pybullet_client_full_id)
-                pybullet.configureDebugVisualizer(
-                    pybullet.COV_ENABLE_DEPTH_BUFFER_PREVIEW,
-                    0,
-                    physicsClientId=self._pybullet_client_full_id)
-                pybullet.configureDebugVisualizer(
-                    pybullet.COV_ENABLE_RGB_BUFFER_PREVIEW,
-                    0,
-                    physicsClientId=self._pybullet_client_full_id)
-                pybullet.resetSimulation(
-                    physicsClientId=self._pybullet_client_full_id)
-                pybullet.setPhysicsEngineParameter(
-                    deterministicOverlappingPairs=1,
-                    physicsClientId=self._pybullet_client_full_id)
+        if self._enable_visualization:
+            self._pb_client_full = bc.BulletClient(connection_mode=pybullet.GUI)
         else:
-            if self._enable_visualization:
-                self._pybullet_client_full_id = pybullet.connect(pybullet.GUI)
-            else:
-                egl = pkgutil.get_loader('eglRenderer')
-                self._pybullet_client_full_id = pybullet.connect(
-                    pybullet.DIRECT)
-                plugin = pybullet.loadPlugin(egl.get_filename(), "_eglRendererPlugin")
-                print("plugin=", plugin)
-            pybullet.configureDebugVisualizer(
-                pybullet.COV_ENABLE_GUI,
-                0,
-                physicsClientId=self._pybullet_client_full_id)
-            pybullet.configureDebugVisualizer(
-                pybullet.COV_ENABLE_SEGMENTATION_MARK_PREVIEW,
-                0,
-                physicsClientId=self._pybullet_client_full_id)
-            pybullet.configureDebugVisualizer(
-                pybullet.COV_ENABLE_DEPTH_BUFFER_PREVIEW,
-                0,
-                physicsClientId=self._pybullet_client_full_id)
-            pybullet.configureDebugVisualizer(
-                pybullet.COV_ENABLE_RGB_BUFFER_PREVIEW,
-                0,
-                physicsClientId=self._pybullet_client_full_id)
-            pybullet.resetSimulation(
-                physicsClientId=self._pybullet_client_full_id)
-            pybullet.setPhysicsEngineParameter(
-                deterministicOverlappingPairs=1,
-                physicsClientId=self._pybullet_client_full_id)
+            egl = pkgutil.get_loader('eglRenderer')
+            self._pb_client_full = bc.BulletClient(
+                pybullet.DIRECT)
+            plugin = self._pb_client_full.loadPlugin(egl.get_filename(), "_eglRendererPlugin")
+            print("plugin=", plugin)
+        self._pb_client_full.configureDebugVisualizer(
+            pybullet.COV_ENABLE_GUI,
+            0)
+        self._pb_client_full.configureDebugVisualizer(
+            pybullet.COV_ENABLE_SEGMENTATION_MARK_PREVIEW,
+            0)
+        self._pb_client_full.configureDebugVisualizer(
+            pybullet.COV_ENABLE_DEPTH_BUFFER_PREVIEW,
+            0)
+        self._pb_client_full.configureDebugVisualizer(
+            pybullet.COV_ENABLE_RGB_BUFFER_PREVIEW,
+            0)
+        self._pb_client_full.resetSimulation()
+        self._pb_client_full.setPhysicsEngineParameter(
+            deterministicOverlappingPairs=1)
         return

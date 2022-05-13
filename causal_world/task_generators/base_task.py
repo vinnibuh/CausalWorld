@@ -5,7 +5,6 @@ from causal_world.utils.state_utils import get_bounding_box_volume
 from causal_world.utils.state_utils import get_intersection
 from causal_world.utils.rotation_utils import cart2cyl
 from causal_world.utils.task_utils import combine_intervention_spaces
-import pybullet
 import logging
 
 
@@ -104,15 +103,15 @@ class BaseTask(object):
                         running.
         """
         pybullet_state = dict()
-        if self._stage._pybullet_client_full_id is not None:
-            pybullet_state['full'] = pybullet.\
-                saveState(physicsClientId=self._stage._pybullet_client_full_id)
-        if self._stage._pybullet_client_w_goal_id is not None:
-            pybullet_state['w_goal'] = pybullet.\
-                saveState(physicsClientId=self._stage._pybullet_client_w_goal_id)
-        if self._stage._pybullet_client_w_o_goal_id is not None:
-            pybullet_state['w_o_goal'] = pybullet. \
-                saveState(physicsClientId=self._stage._pybullet_client_w_o_goal_id)
+        if self._stage._pb_client_full is not None:
+            pybullet_state['full'] = self._stage._pb_client_full.\
+                saveState()
+        if self._stage._pb_client_w_goal is not None:
+            pybullet_state['w_goal'] = self._stage._pb_client_w_goal.\
+                saveState()
+        if self._stage._pb_client_w_o_goal is not None:
+            pybullet_state['w_o_goal'] = self._stage._pb_client_w_o_goal. \
+                saveState()
         pybullet_state['latest_full_state'] = copy.deepcopy(
             self._robot.get_latest_full_state())
         return pybullet_state
@@ -125,18 +124,15 @@ class BaseTask(object):
 
         :return:
         """
-        if self._stage._pybullet_client_full_id is not None:
-            pybullet.\
-                restoreState(pybullet_state['full'],
-                             physicsClientId=self._stage._pybullet_client_full_id)
-        if self._stage._pybullet_client_w_goal_id is not None:
-            pybullet.\
-                restoreState(pybullet_state['w_goal'],
-                             physicsClientId=self._stage._pybullet_client_w_goal_id)
-        if self._stage._pybullet_client_w_o_goal_id is not None:
-            pybullet. \
-                restoreState(pybullet_state['w_o_goal'],
-                             physicsClientId=self._stage._pybullet_client_w_o_goal_id)
+        if self._stage._pb_client_full is not None:
+            self._stage._pb_client_full.\
+                restoreState(pybullet_state['full'])
+        if self._stage._pb_client_w_goal is not None:
+            self._stage._pb_client_w_goal.\
+                restoreState(pybullet_state['w_goal'])
+        if self._stage._pb_client_w_o_goal is not None:
+            self._stage._pb_client_w_o_goal. \
+                restoreState(pybullet_state['w_o_goal'])
         self._robot._latest_full_state = copy.deepcopy(
             pybullet_state['latest_full_state'])
         return
@@ -150,18 +146,15 @@ class BaseTask(object):
 
         :return:
         """
-        if self._stage._pybullet_client_full_id is not None:
-            pybullet. \
-                removeState(pybullet_state['full'],
-                             physicsClientId=self._stage._pybullet_client_full_id)
-        if self._stage._pybullet_client_w_goal_id is not None:
-            pybullet. \
-                removeState(pybullet_state['w_goal'],
-                             physicsClientId=self._stage._pybullet_client_w_goal_id)
-        if self._stage._pybullet_client_w_o_goal_id is not None:
-            pybullet. \
-                removeState(pybullet_state['w_o_goal'],
-                             physicsClientId=self._stage._pybullet_client_w_o_goal_id)
+        if self._stage._pb_client_full is not None:
+            self._stage._pb_client_full. \
+                removeState(pybullet_state['full'])
+        if self._stage._pb_client_w_goal is not None:
+            self._stage._pb_client_w_goal. \
+                removeState(pybullet_state['w_goal'])
+        if self._stage._pb_client_w_o_goal is not None:
+            self._stage._pb_client_w_o_goal. \
+                removeState(pybullet_state['w_o_goal'])
         return
 
     def save_state(self):
