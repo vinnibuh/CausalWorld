@@ -135,7 +135,7 @@ class CausalWorld(gym.Env):
             self._full_cameras.append(
                 Camera(camera_position=cam_position,
                     camera_orientation=cam_orientation,
-                    pb_client_id=self._pb_client_full))
+                    pb_client=self._pb_client_full))
             # self._tool_cameras.append(
             #     Camera(camera_position=cam_position,
             #         camera_orientation=cam_orientation,
@@ -846,7 +846,7 @@ class CausalWorld(gym.Env):
                     angularDamping=0.5,
                     contactStiffness=0.1,
                     contactDamping=0.05)
-            self._create_stage(self._pb_client_full)
+            self._create_stage()
         return
 
     def _reset_world(self):
@@ -911,11 +911,10 @@ class CausalWorld(gym.Env):
         if self._enable_visualization:
             self._pb_client_full = bc.BulletClient(connection_mode=pybullet.GUI)
         else:
-            egl = pkgutil.get_loader('eglRenderer')
-            self._pb_client_full = bc.BulletClient(
-                pybullet.DIRECT)
-            plugin = self._pb_client_full.loadPlugin(egl.get_filename(), "_eglRendererPlugin")
-            print("plugin=", plugin)
+            # egl = pkgutil.get_loader('eglRenderer')
+            self._pb_client_full = bc.BulletClient(connection_mode=pybullet.DIRECT)
+            # plugin = self._pb_client_full.loadPlugin(egl.get_filename(), "_eglRendererPlugin")
+            # print("plugin=", plugin)
         self._pb_client_full.configureDebugVisualizer(
             pybullet.COV_ENABLE_GUI,
             0)
