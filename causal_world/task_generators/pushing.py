@@ -11,9 +11,9 @@ class PushingTaskGenerator(BaseTask):
                  activate_sparse_reward=False,
                  tool_block_mass=0.02,
                  joint_positions=None,
-                 tool_block_position=np.array([0, -0.08, 0.0325]),
+                 tool_block_position=np.array([0, -0.08, 0.0425]),
                  tool_block_orientation=np.array([0, 0, 0, 1]),
-                 goal_block_position=np.array([0, 0.08, 0.0325]),
+                 goal_block_position=np.array([0, 0.08, 0.0425]),
                  goal_block_orientation=np.array([0, 0, 0, 1])):
         """
         This task generates a task for pushing an object on the arena's floor.

@@ -453,7 +453,7 @@ class BaseTask(object):
             if self._stage.get_rigid_objects(
             )[rigid_object].__class__.__name__ == 'Cuboid':
                 self._intervention_space_a[rigid_object]['size'] = \
-                    np.array([[0.055, 0.055, 0.065], [0.075, 0.075, 0.065]])
+                    np.array([[0.075, 0.075, 0.085], [0.095, 0.095, 0.085]])
             self._intervention_space_a[rigid_object]['color'] = \
                 np.array([[0.5, 0.5, 0.5], [1, 1, 1]])
             if self._stage.get_rigid_objects(
@@ -470,7 +470,7 @@ class BaseTask(object):
             if self._stage.get_visual_objects(
             )[visual_object].__class__.__name__ == 'SCuboid':
                 self._intervention_space_a[visual_object]['size'] = \
-                    np.array([[0.055, 0.055, 0.055], [0.075, 0.075, 0.075]])
+                    np.array([[0.075, 0.075, 0.085], [0.095, 0.095, 0.085]])
             self._intervention_space_a[visual_object]['color'] = \
                 np.array([[0.5, 0.5, 0.5], [1, 1, 1]])
         self._intervention_space_a['floor_color'] = \
@@ -514,7 +514,7 @@ class BaseTask(object):
             if self._stage.get_rigid_objects(
             )[rigid_object].__class__.__name__ == 'Cuboid':
                 self._intervention_space_b[rigid_object]['size'] = \
-                    np.array([[0.075, 0.075, 0.065], [0.095, 0.095, 0.065]])
+                    np.array([[0.095, 0.095, 0.085], [0.115, 0.115, 0.085]])
             self._intervention_space_b[rigid_object]['color'] = \
                 np.array([[0, 0, 0], [0.5, 0.5, 0.5]])
             if self._stage.get_rigid_objects(
@@ -531,7 +531,7 @@ class BaseTask(object):
             if self._stage.get_visual_objects(
             )[visual_object].__class__.__name__ == 'SCuboid':
                 self._intervention_space_b[visual_object]['size'] = \
-                    np.array([[0.075, 0.075, 0.075], [0.095, 0.095, 0.095]])
+                    np.array([[0.095, 0.095, 0.085], [0.115, 0.115, 0.085]])
             self._intervention_space_b[visual_object]['color'] = \
                 np.array([[0, 0, 0], [0.5, 0.5, 0.5]])
         self._intervention_space_b['floor_color'] = \
