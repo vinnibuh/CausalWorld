@@ -38,7 +38,7 @@ class CausalWorld(gym.Env):
                  camera_orientations=None,
                  initialize_all_clients=False,
                  camera_indicies=np.array([0, 1, 2]),
-                 wrappers=None):
+                 enable_egl=True):
         """
         The causal world encapsulates the environment of the agent, where you
         can perform actions, intervene, reset the state..etc
@@ -105,6 +105,7 @@ class CausalWorld(gym.Env):
         self._pb_client_full = None
         self._revolute_joint_ids = None
         self._initialize_all_clients = initialize_all_clients
+        self._enable_egl = enable_egl
         self._instantiate_pybullet()
         self.link_name_to_index = None
         self._robot_properties_path = os.path.join(
@@ -908,13 +909,16 @@ class CausalWorld(gym.Env):
 
         :return:
         """
+            
         if self._enable_visualization:
             self._pb_client_full = bc.BulletClient(connection_mode=pybullet.GUI)
-        else:
-            # egl = pkgutil.get_loader('eglRenderer')
+        elif self._enable_egl:
+            egl = pkgutil.get_loader('eglRenderer')
             self._pb_client_full = bc.BulletClient(connection_mode=pybullet.DIRECT)
-            # plugin = self._pb_client_full.loadPlugin(egl.get_filename(), "_eglRendererPlugin")
-            # print("plugin=", plugin)
+            plugin = self._pb_client_full.loadPlugin(egl.get_filename(), "_eglRendererPlugin")
+            print("plugin=", plugin)
+        else:
+            self._pb_client_full = bc.BulletClient(connection_mode=pybullet.DIRECT)
         self._pb_client_full.configureDebugVisualizer(
             pybullet.COV_ENABLE_GUI,
             0)
