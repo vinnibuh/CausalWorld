@@ -11,8 +11,10 @@ class PushingTaskGenerator(BaseTask):
                  activate_sparse_reward=False,
                  tool_block_mass=0.02,
                  joint_positions=None,
+                 tool_block_size=np.array([0.085, 0.085, 0.085]),
                  tool_block_position=np.array([0, -0.08, 0.0425]),
                  tool_block_orientation=np.array([0, 0, 0, 1]),
+                 goal_block_size=np.array([0.085, 0.085, 0.085]),
                  goal_block_position=np.array([0, 0.08, 0.0425]),
                  goal_block_orientation=np.array([0, 0, 0, 1])):
         """
@@ -56,8 +58,10 @@ class PushingTaskGenerator(BaseTask):
                                             "end_effector_positions"]
         self._task_params["tool_block_mass"] = tool_block_mass
         self._task_params["joint_positions"] = joint_positions
+        self._task_params["tool_block_size"] = tool_block_size
         self._task_params["tool_block_position"] = tool_block_position
         self._task_params["tool_block_orientation"] = tool_block_orientation
+        self._task_params["goal_block_size"] = goal_block_size
         self._task_params["goal_block_position"] = goal_block_position
         self._task_params["goal_block_orientation"] = goal_block_orientation
         self.previous_end_effector_positions = None
@@ -81,6 +85,7 @@ class PushingTaskGenerator(BaseTask):
         creation_dict = {
             'name': "tool_block",
             'shape': "cube",
+            'size': self._task_params['tool_block_size'],
             'initial_position': self._task_params["tool_block_position"],
             'initial_orientation': self._task_params["tool_block_orientation"],
             'mass': self._task_params["tool_block_mass"]
@@ -89,6 +94,7 @@ class PushingTaskGenerator(BaseTask):
         creation_dict = {
             'name': "goal_block",
             'shape': "cube",
+            'size': self._task_params['goal_block_size'],
             'position': self._task_params["goal_block_position"],
             'orientation': self._task_params["goal_block_orientation"]
         }
