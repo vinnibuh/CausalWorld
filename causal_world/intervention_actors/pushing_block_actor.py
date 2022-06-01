@@ -72,9 +72,6 @@ class PushingBlockInterventionActorPolicy(BaseInterventionActorPolicy):
                             [variable]['size'][0],
                             self.task_intervention_space
                             [variable]['size'][1])
-                    # we don't want to change height
-                    interventions_dict[variable]['size'][-1] = \
-                        self.task_intervention_space[variable]['cylindrical_position'][0][-1]
                 if self.masses:
                     interventions_dict[variable]['mass'] = \
                         np.random.uniform(
